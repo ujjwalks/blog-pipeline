@@ -87,9 +87,24 @@ The user invokes the skill and names a sub-command (or the cron calls one). The
 | `deploy` | after content approval | Run the rendered deploy script (merge draft branch → main → prod) → confirm in Slack (`published`). |
 | `status` | anytime | Print the current run's state and next action. |
 
+### Pick argument contract
+
+Both gates accept the human's selection through one canonical parser
+(`runstate.parse_picks`), so the manual and poll paths behave identically:
+
+- `all` → every posted item, capped at `blogsPerRun`.
+- comma/space list of 1-based indices → `1,3,5` or `1 3 5`.
+- comma/space list of slugs → matched against the run file's posted items.
+
+`SKILL.md` passes the operator's inline arg to the same parser that `slack.py`
+feeds the fetched Slack reply into. Out-of-range or unmatched picks are reported,
+not silently dropped.
+
 ### Gate advancement (configurable)
 
-Each of the two human gates (topic approval, content approval) can be:
+Each of the two human gates (topic approval, content approval) uses the **same**
+manual/poll mechanism, selected independently via `gates.topicApproval` and
+`gates.contentApproval`:
 
 - **manual** — the human runs the next sub-command themselves after replying in
   Slack. Simplest, fully in the operator's control.
@@ -133,12 +148,27 @@ Both cron time and gate mode are chosen in `setup` and stored in config.
     "botTokenEnv": "BLOG_PIPELINE_SLACK_BOT_TOKEN"
   },
   "review": { "mode": "vercel-preview", "branchPrefix": "blog/draft-" },
-  "deploy": { "script": "scripts/blog-deploy.sh", "target": "main" }
+  "deploy": { "mode": "git-push", "script": "scripts/blog-deploy.sh",
+              "remote": "origin", "target": "main" }
 }
 ```
 
 Config location: `<target.repoPath>/.blog-pipeline/config.json` so it travels
 with the site repo, not the skill repo.
+
+### Enumerated values (single source of truth, no magic strings)
+
+`scripts/config.py` defines these enums and validates against them:
+
+- `target.blogFormat` ∈ `json | md | mdx`
+- `scheduler` ∈ `crontab | launchd | schedule-skill`
+- `gates.topicApproval`, `gates.contentApproval` ∈ `manual | poll`
+- `review.mode` ∈ `vercel-preview | local-dev | slack-raw`
+- `deploy.mode` ∈ `git-push | vercel-cli`
+
+`deploy.remote` + `deploy.target` name the git remote and prod branch the deploy
+script pushes to (e.g. `origin` / `main`). The deploy-script template reads both
+from config rather than inferring them.
 
 ## 6. Run-state machine
 
