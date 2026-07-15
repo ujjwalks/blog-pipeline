@@ -9,9 +9,14 @@
 A generic, config-driven Claude Code skill that runs a daily blog production
 pipeline end to end:
 
-> research relevant topics per audience → post a top-N topic list to Slack →
-> human picks topics → draft the blogs → post per-blog preview links → human
-> approves → deploy to production.
+> research relevant topics per audience → post a top-N topic list to the
+> configured **review channel** → human picks topics → draft the blogs → post
+> per-blog preview links → human approves → deploy to production.
+
+The **review gate is mandatory** — nothing drafts or deploys without human
+approval — but the *channel* that carries the review (Slack, a CLI prompt, email,
+etc.) is chosen by the user in `setup`, not fixed to any one service. Slack is
+the shipped default implementation.
 
 The skill is **target-agnostic**. It hardcodes nothing about any one website.
 FinBoard is simply its first configured user (shipped as
@@ -23,7 +28,7 @@ the model's judgment.
 
 - It does not host a server or maintain a long-running process. Claude Code is
   not persistent; the pipeline is a set of **stateless stages** with human gates
-  that happen in Slack between stages.
+  that happen on the configured review channel between stages.
 - It does not generate cover images (a future extension may). Blogs reference an
   image URL supplied by the target's config default or left for manual add.
 - It is not a CMS. It writes blog files into the target repo's existing content
@@ -54,7 +59,10 @@ blog-pipeline/
 │   ├── config.py                   #   load / validate / write config.json (schema-checked)
 │   ├── existing.py                 #   list target's existing blog slugs; dedupe candidates
 │   ├── validate_blog.py            #   assert a generated blog file matches the target schema
-│   ├── slack.py                    #   post messages + read replies (webhook + bot token)
+│   ├── channels/                   #   review-channel adapters (post list / read reply)
+│   │   ├── base.py                 #     adapter interface
+│   │   ├── slack.py                #     Slack (webhook + bot token) — default
+│   │   └── cli.py                  #     stdout + arg — zero-setup fallback
 │   ├── runstate.py                 #   per-run state machine read/write
 │   └── install_cron.py             #   install crontab / launchd entry from config
 ├── references/
@@ -81,8 +89,8 @@ The user invokes the skill and names a sub-command (or the cron calls one). The
 
 | Command | Trigger | Responsibility |
 |---|---|---|
-| `setup` | interactive, once | Build/edit personas; ask topics-per-run, blogs-per-run, frequency, cron time, gate mode, review mechanism, deploy method, Slack channel; write `config.json`; render `deploy.sh`; install cron. |
-| `research` | cron entry | Research per persona → dedupe vs existing slugs → rank → produce top-N topics → post numbered list to Slack → save run file (`awaiting_topic_approval`). |
+| `setup` | interactive, once | Build/edit personas; ask topics-per-run, blogs-per-run, frequency, cron time, gate mode, review mechanism, deploy method, review channel; write `config.json`; render `deploy.sh`; install cron. |
+| `research` | cron entry | Research per persona → dedupe vs existing slugs → rank → produce top-N topics → post numbered list to the review channel → save run file (`awaiting_topic_approval`). |
 | `draft` | after topic pick | Read the Slack reply (or arg) → for each selected topic, write a blog file → validate → commit to `blog/draft-<date>` branch → push → post per-blog preview URLs to Slack (`awaiting_content_approval`). |
 | `deploy` | after content approval | Run the rendered deploy script (merge draft branch → main → prod) → confirm in Slack (`published`). |
 | `status` | anytime | Print the current run's state and next action. |
@@ -96,9 +104,9 @@ Both gates accept the human's selection through one canonical parser
 - comma/space list of 1-based indices → `1,3,5` or `1 3 5`.
 - comma/space list of slugs → matched against the run file's posted items.
 
-`SKILL.md` passes the operator's inline arg to the same parser that `slack.py`
-feeds the fetched Slack reply into. Out-of-range or unmatched picks are reported,
-not silently dropped.
+`SKILL.md` passes the operator's inline arg to the same parser that the
+review-channel adapter feeds the fetched reply into. Out-of-range or unmatched
+picks are reported, not silently dropped.
 
 ### Gate advancement (configurable)
 
@@ -106,10 +114,10 @@ Each of the two human gates (topic approval, content approval) uses the **same**
 manual/poll mechanism, selected independently via `gates.topicApproval` and
 `gates.contentApproval`:
 
-- **manual** — the human runs the next sub-command themselves after replying in
-  Slack. Simplest, fully in the operator's control.
+- **manual** — the human runs the next sub-command themselves after replying on
+  the review channel. Simplest, fully in the operator's control.
 - **poll** — a lightweight scheduled job re-invokes the skill, which reads the
-  Slack channel via `slack.py` for the approval reply and auto-advances.
+  review channel for the approval reply and auto-advances.
 
 Both cron time and gate mode are chosen in `setup` and stored in config.
 
@@ -142,10 +150,13 @@ Both cron time and gate mode are chosen in `setup` and stored in config.
   "cron": "0 12 * * *",
   "scheduler": "crontab",                    // crontab | launchd | schedule-skill
   "gates": { "topicApproval": "manual", "contentApproval": "manual" },
-  "slack": {
-    "channelId": "C0…",
-    "webhookEnv": "BLOG_PIPELINE_SLACK_WEBHOOK",   // env var NAME, not value
-    "botTokenEnv": "BLOG_PIPELINE_SLACK_BOT_TOKEN"
+  "reviewChannel": {                         // where topic lists & preview links go
+    "type": "slack",                         // slack | cli | email | …
+    "slack": {
+      "channelId": "C0…",
+      "webhookEnv": "BLOG_PIPELINE_SLACK_WEBHOOK",   // env var NAME, not value
+      "botTokenEnv": "BLOG_PIPELINE_SLACK_BOT_TOKEN"
+    }
   },
   "review": { "mode": "vercel-preview", "branchPrefix": "blog/draft-" },
   "deploy": { "mode": "git-push", "script": "scripts/blog-deploy.sh",
@@ -163,7 +174,8 @@ with the site repo, not the skill repo.
 - `target.blogFormat` ∈ `json | md | mdx`
 - `scheduler` ∈ `crontab | launchd | schedule-skill`
 - `gates.topicApproval`, `gates.contentApproval` ∈ `manual | poll`
-- `review.mode` ∈ `vercel-preview | local-dev | slack-raw`
+- `reviewChannel.type` ∈ `slack | cli | email` (Slack shipped in v1)
+- `review.mode` ∈ `vercel-preview | local-dev | inline`
 - `deploy.mode` ∈ `git-push | vercel-cli`
 
 `deploy.remote` + `deploy.target` name the git remote and prod branch the deploy
@@ -177,9 +189,9 @@ Per-run file: `<repoPath>/.blog-pipeline/runs/YYYY-MM-DD.json`, managed by
 
 ```
 researching
-  → awaiting_topic_approval   (topics posted to Slack)
+  → awaiting_topic_approval   (topics posted to review channel)
   → drafting
-  → awaiting_content_approval (preview URLs posted to Slack)
+  → awaiting_content_approval (preview URLs posted to review channel)
   → deploying
   → published
 ```
@@ -199,33 +211,51 @@ Every stage is **idempotent** and keyed by date, so re-running a stage is safe
   candidate pool, drop anything whose slug/topic duplicates an existing post,
   rank for relevance + freshness + audience spread, and select the top
   `topicsPerRun`.
-- Code: `slack.py` posts a numbered list; `runstate.py` writes the run file.
+- Code: the review-channel adapter posts a numbered list; `runstate.py` writes
+  the run file.
 
 ### 7.2 draft (judgment + code)
-- Code: `slack.py` reads the human's reply (e.g. `1,3,5` or `all`), capped at
-  `blogsPerRun`.
+- Code: the review-channel adapter reads the human's reply (e.g. `1,3,5` or
+  `all`), capped at `blogsPerRun`.
 - Model: for each selected topic, write a full blog in the target's format,
   following `references/blog-schema.md` house style; category set, author
   auto-resolved from category, slug generated, excerpt, structured data.
 - Code: `validate_blog.py` asserts the file matches the schema (required fields,
   valid category, unique slug). Then commit to the draft branch and push; the
-  target's Vercel project auto-builds a preview. `slack.py` posts one preview URL
-  per blog (`<previewBase>/blog/<slug>`).
+  target's Vercel project auto-builds a preview. The review-channel adapter posts
+  one preview URL per blog (`<previewBase>/blog/<slug>`).
 
 ### 7.3 deploy (code)
 - Code: on approval, run the rendered `deploy.sh` — verify clean tree, merge the
   draft branch into `deploy.target`, push (Vercel builds prod), print the
-  deployment URL. `slack.py` posts confirmation. `runstate.py` → `published`.
+  deployment URL. The review-channel adapter posts confirmation. `runstate.py` →
+  `published`.
 
-## 8. Slack transport
+## 8. Review channel (pluggable, Slack default)
 
-`scripts/slack.py` is self-contained and cron-safe:
+The review channel is the seam through which topic lists and preview links go out
+and approvals come back. It is a small **adapter interface** so the *what* (post
+a list, read the reply) is fixed while the *how* (Slack, CLI, email) is
+configurable via `reviewChannel.type`:
+
+```
+post_topics(run)      → publish the numbered topic list
+post_previews(run)    → publish per-blog preview URLs
+read_reply(run)       → fetch the human's pick/approval (poll gate only)
+post_confirmation(run)→ announce the deploy
+```
+
+**`scripts/channels/slack.py`** is the v1 implementation, self-contained and
+cron-safe:
 - **post** via an incoming webhook (`webhookEnv`).
 - **read** replies via the bot token (`botTokenEnv`, `conversations.history` /
   `conversations.replies` on `channelId`).
-Both secrets are read from environment variables named in config; values never
-touch the repo. In an interactive session the operator may also just paste their
-picks as a sub-command arg, bypassing the read path.
+
+Secrets are read from environment variables *named* in config; values never touch
+the repo. A `cli` adapter (prints to stdout, reads the pick as a sub-command arg)
+ships as the zero-setup fallback so the pipeline is usable before any Slack setup.
+In an interactive session the operator can always paste picks as a sub-command
+arg, bypassing the read path entirely.
 
 ## 9. Deploy script generation
 
@@ -246,9 +276,11 @@ and the template branches accordingly.
 - `test_existing.py` — slug listing + dedupe against a fixture content dir.
 - `test_runstate.py` — legal state transitions; illegal transition raises;
   idempotent re-write.
+- `test_channels.py` — the `cli` adapter posts/reads without network; the Slack
+  adapter is unit-tested against a stubbed HTTP layer (no live calls).
 
-Slack, cron install, and deploy are integration-tested manually (documented in
-README) since they touch external systems.
+Live Slack, cron install, and deploy are integration-tested manually (documented
+in README) since they touch external systems.
 
 ### Acceptance gate — skill-doctor
 
@@ -269,9 +301,10 @@ not called good on the static audit alone.
 
 ## 11. Error handling
 
-- Slack post fails → abort the stage, leave run file at prior status, surface the
-  error. Re-running the stage retries.
-- No new topics (all candidates dedupe out) → post "nothing new today" to Slack,
+- Review-channel post fails → abort the stage, leave run file at prior status,
+  surface the error. Re-running the stage retries.
+- No new topics (all candidates dedupe out) → post "nothing new today" to the
+  review channel,
   mark run `published` (no-op) so cron doesn't loop.
 - `validate_blog.py` fails on a draft → skip that blog, keep the rest, report
   which failed; do not push an invalid file.
