@@ -250,6 +250,23 @@ and the template branches accordingly.
 Slack, cron install, and deploy are integration-tested manually (documented in
 README) since they touch external systems.
 
+### Acceptance gate — skill-doctor
+
+Because `blog-pipeline` is itself a Claude Code skill, its `SKILL.md` must pass
+`skill-doctor` before the work is considered done:
+
+```
+python3 ~/self/skill-doctor/scripts/audit.py ~/self/blog-pipeline --json
+```
+
+Every `error` and `warn` finding is resolved (frontmatter/name/description
+correctness, no hardcoded secrets, no hardcoded operator paths, body not bloated,
+references properly routed). The description is then judged against skill-doctor's
+gate rubric (states *what it does* **and** *when to use it*, enumerates the words
+the operator would type, closes the escape hatch). Finally, skill-doctor's paired
+eval scaffolding produces candidate trigger prompts + assertions; the skill is
+not called good on the static audit alone.
+
 ## 11. Error handling
 
 - Slack post fails → abort the stage, leave run file at prior status, surface the
