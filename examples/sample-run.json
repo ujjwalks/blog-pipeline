@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-15",
+  "status": "awaiting_content_approval",
+  "topics": [
+    {
+      "title": "Prime Cost for Restaurants: The Weekly Number That Saves Your Margin",
+      "slug": "restaurant-prime-cost-weekly",
+      "persona": "restaurant",
+      "angle": "Weekly prime cost tracking with a worked formula from POS and payroll data",
+      "keyword": "prime cost formula restaurant",
+      "rationale": "High-volume evergreen query; no existing post covers prime cost"
+    },
+    {
+      "title": "Q3 2026 Estimated Tax Deadlines: What Solo Owners Need to File by September 15",
+      "slug": "q3-2026-estimated-tax-deadlines",
+      "persona": "solopreneur",
+      "angle": "Deadline-anchored checklist with safe-harbor rules and worked examples",
+      "keyword": "Q3 estimated tax deadline 2026",
+      "rationale": "Deadline is 8 weeks out; search volume ramps now"
+    },
+    {
+      "title": "Consolidating Multi-Entity Clients in QuickBooks Online Without Spreadsheets",
+      "slug": "multi-entity-consolidation-qbo",
+      "persona": "accounting-firm",
+      "angle": "Step-by-step eliminations and mapping workflow for firms with 5+ entity clients",
+      "keyword": "how to consolidate two QuickBooks companies",
+      "rationale": "Common AI-assistant prompt; strong product fit"
+    }
+  ],
+  "selected": [0, 2],
+  "drafted": [
+    {
+      "slug": "restaurant-prime-cost-weekly",
+      "file": "frontend/content/blog/restaurant-prime-cost-weekly.json",
+      "previewUrl": "https://app-git-blog-draft-2026-07-15-example.vercel.app/blog/restaurant-prime-cost-weekly"
+    },
+    {
+      "slug": "multi-entity-consolidation-qbo",
+      "file": "frontend/content/blog/multi-entity-consolidation-qbo.json",
+      "previewUrl": "https://app-git-blog-draft-2026-07-15-example.vercel.app/blog/multi-entity-consolidation-qbo"
+    }
+  ],
+  "deploy": {},
+  "history": [
+    { "status": "awaiting_topic_approval", "at": "2026-07-15T12:02:41Z" },
+    { "status": "drafting", "at": "2026-07-15T14:30:05Z" },
+    { "status": "awaiting_content_approval", "at": "2026-07-15T14:47:22Z" }
+  ]
+}

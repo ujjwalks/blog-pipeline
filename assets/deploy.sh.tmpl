@@ -1,0 +1,52 @@
+#!/bin/sh
+# blog-deploy.sh -- rendered from blog-pipeline's assets/deploy.sh.tmpl by the
+# setup stage. Lives in the TARGET repo, not the skill repo.
+#
+# Merges the draft branch for a run date into the production branch and
+# deploys. Refuses to touch a dirty tree.
+#
+# usage: blog-deploy.sh <YYYY-MM-DD>
+
+set -euo pipefail
+
+REPO_PATH="{{REPO_PATH}}"
+REMOTE="{{REMOTE}}"
+TARGET_BRANCH="{{TARGET_BRANCH}}"
+BRANCH_PREFIX="{{BRANCH_PREFIX}}"
+DEPLOY_MODE="{{DEPLOY_MODE}}"   # git-push | vercel-cli
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: blog-deploy.sh <YYYY-MM-DD>" >&2
+  exit 2
+fi
+
+DATE="$1"
+case "$DATE" in
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+  *)
+    echo "error: date must be YYYY-MM-DD, got '$DATE'" >&2
+    exit 2
+    ;;
+esac
+
+DRAFT_BRANCH="${BRANCH_PREFIX}${DATE}"
+
+cd "$REPO_PATH"
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "abort: working tree is dirty; commit or stash before deploying" >&2
+  exit 1
+fi
+
+git fetch "$REMOTE"
+git checkout "$TARGET_BRANCH"
+git pull --ff-only "$REMOTE" "$TARGET_BRANCH"
+git merge --no-ff "$DRAFT_BRANCH" -m "blog: publish drafts for $DATE"
+git push "$REMOTE" "$TARGET_BRANCH"
+
+if [ "$DEPLOY_MODE" = "vercel-cli" ]; then
+  vercel deploy --prod --yes
+fi
+
+echo "merged commit: $(git rev-parse HEAD)"
+echo "next: verify each published URL returns HTTP 200 on the live domain before confirming on the review channel"

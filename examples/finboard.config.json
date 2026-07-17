@@ -1,0 +1,160 @@
+{
+  "target": {
+    "repoPath": "/Users/ujjwal/finboard/app",
+    "contentDir": "frontend/content/blog",
+    "blogFormat": "json",
+    "categories": ["accounting", "tech"],
+    "authors": [
+      { "id": "finboard-team" },
+      { "id": "vaishnav-gupta", "category": "accounting" },
+      { "id": "ujjwal-singh", "category": "tech" }
+    ]
+  },
+  "personas": [
+    {
+      "id": "accounting-firm",
+      "name": "Accounting & bookkeeping firms",
+      "pains": [
+        "month-end close across dozens of clients at once",
+        "consolidating multi-entity clients by hand in spreadsheets",
+        "no standard chart of accounts across the client base",
+        "partner review bottlenecks when staff churn",
+        "pricing advisory work beyond compliance billing"
+      ],
+      "keywords": [
+        "client accounting services",
+        "month-end close checklist",
+        "multi-entity consolidation",
+        "chart of accounts standardization",
+        "QBO firm workflow"
+      ]
+    },
+    {
+      "id": "cpa",
+      "name": "CPAs & solo accountants",
+      "pains": [
+        "deadline crunch every filing season",
+        "keeping current with tax and standards changes while billing hours",
+        "moving from compliance work to advisory revenue",
+        "tool sprawl across tax, books, and workpapers"
+      ],
+      "keywords": [
+        "CPA",
+        "tax deadlines",
+        "IRS updates",
+        "advisory services",
+        "QuickBooks for accountants"
+      ]
+    },
+    {
+      "id": "solopreneur",
+      "name": "Solopreneurs & small business owners",
+      "pains": [
+        "doing their own books with no accounting training",
+        "profit on the P&L never matches cash in the bank",
+        "quarterly estimated taxes as a recurring surprise",
+        "deciding when a bookkeeper is worth it"
+      ],
+      "keywords": [
+        "small business bookkeeping",
+        "profit and loss explained",
+        "quarterly estimated taxes",
+        "DIY accounting",
+        "when to hire a bookkeeper"
+      ]
+    },
+    {
+      "id": "restaurant",
+      "name": "Restaurant owners & operators",
+      "pains": [
+        "prime cost creeping past 60% without a weekly number to catch it",
+        "food cost swings that erase thin margins",
+        "tip reporting and payroll compliance",
+        "reconciling POS totals to the books",
+        "comparing locations on different reporting periods"
+      ],
+      "keywords": [
+        "restaurant accounting",
+        "prime cost",
+        "food cost percentage",
+        "POS reconciliation",
+        "4-week accounting periods"
+      ]
+    },
+    {
+      "id": "hospital",
+      "name": "Healthcare practices & hospital groups",
+      "pains": [
+        "revenue cycle lag between date of service and payment",
+        "payer mix shifts silently change reimbursement",
+        "no department-level cost visibility",
+        "consolidating multiple practice entities",
+        "compliance overhead on every reporting change"
+      ],
+      "keywords": [
+        "medical practice accounting",
+        "revenue cycle management",
+        "payer mix analysis",
+        "healthcare finance KPIs",
+        "multi-entity practice reporting"
+      ]
+    },
+    {
+      "id": "construction",
+      "name": "Construction & contracting firms",
+      "pains": [
+        "job costing that lags the job, so overruns surface after the money is spent",
+        "WIP schedules and over/under billing done in spreadsheets",
+        "percentage-of-completion revenue recognition",
+        "retainage tracking",
+        "cash flow gaps across long projects"
+      ],
+      "keywords": [
+        "job costing",
+        "WIP report",
+        "retainage",
+        "percentage of completion",
+        "construction cash flow"
+      ]
+    },
+    {
+      "id": "cfo",
+      "name": "CFOs & finance teams",
+      "pains": [
+        "board package takes days to assemble every month",
+        "consolidating entities and currencies by hand",
+        "budget vs actual variance explanations arrive too late",
+        "forecasts stale on arrival",
+        "audit prep as an annual fire drill"
+      ],
+      "keywords": [
+        "board reporting",
+        "financial consolidation",
+        "budget vs actuals",
+        "FP&A automation",
+        "month-end close acceleration"
+      ]
+    }
+  ],
+  "topicsPerRun": 10,
+  "blogsPerRun": 3,
+  "frequency": "daily",
+  "cron": "0 12 * * *",
+  "scheduler": "crontab",
+  "gates": { "topicApproval": "manual", "contentApproval": "manual" },
+  "reviewChannel": {
+    "type": "slack",
+    "slack": {
+      "channelId": "C078EGJH280",
+      "webhookEnv": "BLOG_PIPELINE_SLACK_WEBHOOK",
+      "botTokenEnv": "BLOG_PIPELINE_SLACK_BOT_TOKEN"
+    }
+  },
+  "review": { "mode": "vercel-preview", "branchPrefix": "blog/draft-" },
+  "deploy": {
+    "mode": "git-push",
+    "script": "scripts/blog-deploy.sh",
+    "remote": "origin",
+    "target": "main"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "_comment": "Annotated example config. Copy to <your-repo>/.blog-pipeline/config.json and edit. Enums: blogFormat json|md|mdx, scheduler crontab|launchd|schedule-skill, gates manual|poll, reviewChannel.type slack|cli|email, review.mode vercel-preview|local-dev|inline, deploy.mode git-push|vercel-cli.",
+  "_comment_secrets": "Secrets are referenced by ENVIRONMENT VARIABLE NAME only (webhookEnv, botTokenEnv). Never paste a webhook URL or token value into this file; validation rejects it.",
+  "target": {
+    "repoPath": "/absolute/path/to/your-site",
+    "contentDir": "content/blog",
+    "blogFormat": "md",
+    "categories": ["guides", "product"],
+    "authors": [
+      { "id": "site-team" },
+      { "id": "jane-doe", "category": "guides" }
+    ],
+    "defaultCoverImage": "https://example.com/images/blog-default.png"
+  },
+  "personas": [
+    {
+      "id": "founder",
+      "name": "Startup founders",
+      "pains": ["runway visibility", "first finance hire timing", "investor updates"],
+      "keywords": ["burn rate", "runway", "investor update template"]
+    },
+    {
+      "id": "ops-lead",
+      "name": "Operations leads",
+      "pains": ["manual monthly reporting", "tool sprawl", "process handoffs"],
+      "keywords": ["ops reporting", "SOP", "automation"]
+    },
+    {
+      "id": "freelancer",
+      "name": "Freelancers & consultants",
+      "pains": ["irregular income planning", "invoicing follow-up", "quarterly taxes"],
+      "keywords": ["freelance invoicing", "estimated taxes", "retainer pricing"]
+    }
+  ],
+  "topicsPerRun": 10,
+  "blogsPerRun": 3,
+  "frequency": "daily",
+  "cron": "0 12 * * *",
+  "scheduler": "crontab",
+  "gates": { "topicApproval": "manual", "contentApproval": "manual" },
+  "reviewChannel": {
+    "type": "slack",
+    "slack": {
+      "channelId": "C0123456789",
+      "webhookEnv": "BLOG_PIPELINE_SLACK_WEBHOOK",
+      "botTokenEnv": "BLOG_PIPELINE_SLACK_BOT_TOKEN"
+    }
+  },
+  "review": { "mode": "vercel-preview", "branchPrefix": "blog/draft-" },
+  "deploy": {
+    "mode": "git-push",
+    "script": "scripts/blog-deploy.sh",
+    "remote": "origin",
+    "target": "main"
+  }
+}
