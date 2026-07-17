@@ -20,7 +20,7 @@ the shipped default implementation.
 
 The skill is **target-agnostic**. It hardcodes nothing about any one website.
 FinBoard is simply its first configured user (shipped as
-`examples/finboard.config.json`). This mirrors the `skill-doctor` philosophy:
+`examples/config.filled.example.json`). This mirrors the `skill-doctor` philosophy:
 the skill is portable, open-source, and driven entirely by a config file plus
 the model's judgment.
 
@@ -71,7 +71,7 @@ blog-pipeline/
 │   └── pipeline.md                 #   stage + gate state-machine spec
 ├── examples/
 │   ├── config.example.json         #   annotated template
-│   ├── finboard.config.json        #   FinBoard's real config (first user)
+│   ├── config.filled.example.json  #   fully filled worked example (first user, sanitized)
 │   ├── sample-run.json             #   a run file mid-pipeline
 │   └── sample-blog.json            #   a validated blog file
 ├── assets/
@@ -314,8 +314,8 @@ not called good on the static audit alone.
 
 ## 12. FinBoard as first user
 
-`examples/finboard.config.json` fills the schema for FinBoard:
-`repoPath=/Users/ujjwal/finboard/app`, `contentDir=frontend/content/blog`,
+`examples/config.filled.example.json` fills the schema for the first user (FinBoard), sanitized:
+`repoPath=<site repo>`, `contentDir=frontend/content/blog`,
 `blogFormat=json`, categories `accounting`/`tech`, authors `vaishnav-gupta`
 (accounting) / `ujjwal-singh` (tech), Vercel preview review, deploy by
 git-push to `main` on `finboard-dev/app`. Personas: accounting firm,

@@ -1,13 +1,24 @@
 {
   "target": {
-    "repoPath": "/Users/ujjwal/finboard/app",
+    "repoPath": "/path/to/your/site",
     "contentDir": "frontend/content/blog",
     "blogFormat": "json",
-    "categories": ["accounting", "tech"],
+    "categories": [
+      "accounting",
+      "tech"
+    ],
     "authors": [
-      { "id": "finboard-team" },
-      { "id": "vaishnav-gupta", "category": "accounting" },
-      { "id": "ujjwal-singh", "category": "tech" }
+      {
+        "id": "finboard-team"
+      },
+      {
+        "id": "vaishnav-gupta",
+        "category": "accounting"
+      },
+      {
+        "id": "ujjwal-singh",
+        "category": "tech"
+      }
     ]
   },
   "personas": [
@@ -141,16 +152,22 @@
   "frequency": "daily",
   "cron": "0 12 * * *",
   "scheduler": "crontab",
-  "gates": { "topicApproval": "manual", "contentApproval": "manual" },
+  "gates": {
+    "topicApproval": "manual",
+    "contentApproval": "manual"
+  },
   "reviewChannel": {
     "type": "slack",
     "slack": {
-      "channelId": "C078EGJH280",
+      "channelId": "C0XXXXXXXXX",
       "webhookEnv": "BLOG_PIPELINE_SLACK_WEBHOOK",
       "botTokenEnv": "BLOG_PIPELINE_SLACK_BOT_TOKEN"
     }
   },
-  "review": { "mode": "vercel-preview", "branchPrefix": "blog/draft-" },
+  "review": {
+    "mode": "vercel-preview",
+    "branchPrefix": "blog/draft-"
+  },
   "deploy": {
     "mode": "git-push",
     "script": "scripts/blog-deploy.sh",
