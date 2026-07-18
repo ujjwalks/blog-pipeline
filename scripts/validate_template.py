@@ -52,6 +52,17 @@ def validate_metadata(path: Path, cfg: dict, existing_slugs: list) -> list:
     if cats and data.get("category") not in cats:
         errors.append(f"category {data.get('category')!r} not in templatesTarget.categories")
 
+    lead = data.get("leadQuestions")
+    if lead is not None:
+        if not isinstance(lead, list) or not lead:
+            errors.append("leadQuestions: must be a non-empty list when present")
+        else:
+            for i, q in enumerate(lead):
+                if not isinstance(q, dict) or not q.get("id") or not q.get("label"):
+                    errors.append(f"leadQuestions[{i}]: id and label required")
+                elif q.get("type") == "select" and not q.get("options"):
+                    errors.append(f"leadQuestions[{i}]: select needs options")
+
     link = str(data.get("link", ""))
     if link and not (link.startswith("/") or link.startswith("https://")):
         errors.append(f"link must be a site-relative path or https URL, got {link!r}")

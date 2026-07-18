@@ -120,7 +120,13 @@ downloadable spreadsheet templates, namespaced per day as run id
   `~/.blog-pipeline-venv/bin/python` or any env that has it) and a metadata
   JSON in `templatesTarget.contentDir` whose `link` points at the hosted file.
   Quality bar and sheet conventions: `references/template-quality.md` -- read
-  it before generating, the validator enforces its floor.
+  it before generating, the validator enforces its floor. If the target gates
+  downloads behind a lead form, also draft `leadQuestions` in the metadata:
+  1 to 2 select-type questions a sales team would actually want answered by
+  someone downloading THIS template (segment size, tooling, role), each
+  `{id, label, type: "select", options: [3 to 4 ranges]}`. Generate the
+  template's own cover with `scripts/gen_cover.py` conventions (render the
+  model sheet, never borrow an image).
 - validate: `python3 scripts/validate_template.py <repo> <slug>` per template
   (metadata schema + workbook opens, has an Instructions sheet, computes with
   real formulas).
