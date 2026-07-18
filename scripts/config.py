@@ -130,6 +130,21 @@ def validate_config(cfg: dict) -> list:
         _check_env_name(slack.get("webhookEnv"), "reviewChannel.slack.webhookEnv", errors)
         _check_env_name(slack.get("botTokenEnv"), "reviewChannel.slack.botTokenEnv", errors)
 
+    # Optional second pipeline: spreadsheet templates. When present, all three
+    # fields are required so the generate/validate stages have a target.
+    tcfg = cfg.get("templatesTarget")
+    if tcfg is not None:
+        for field in ("contentDir", "filesDir"):
+            if not tcfg.get(field):
+                errors.append(f"templatesTarget.{field}: required")
+        tcats = tcfg.get("categories")
+        if not isinstance(tcats, list) or not tcats:
+            errors.append("templatesTarget.categories: must be a non-empty list")
+        for field, default in (("ideasPerRun", 10), ("templatesPerRun", 3)):
+            val = tcfg.get(field, default)
+            if not isinstance(val, int) or val < 1:
+                errors.append(f"templatesTarget.{field}: must be a positive integer")
+
     review = cfg.get("review", {})
     _check_enum(review.get("mode"), REVIEW_MODES, "review.mode", errors)
 

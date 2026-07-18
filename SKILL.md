@@ -102,6 +102,27 @@ auto-generates discovery files (sitemap.xml, llms.txt), confirm the new slugs
 appear there too. Post confirmation to the channel, advance
 deploying -> published.
 
+## templates (second pipeline, same machinery)
+
+When config has a `templatesTarget` section, the same stages run for
+downloadable spreadsheet templates, namespaced per day as run id
+`<date>-templates` (one run per date, same rule). Differences from blogs:
+
+- research: ideas are spreadsheet MODELS the personas would actually use
+  (calculators, trackers, forecasts). Dedupe against
+  `<templatesTarget.contentDir>/*.json` slugs. Post `ideasPerRun` ideas;
+  `templatesPerRun` (typically 2 to 5) get built per day.
+- create: each pick becomes TWO artifacts that must agree: an .xlsx workbook
+  in `templatesTarget.filesDir` (build with openpyxl; use the interpreter at
+  `~/.blog-pipeline-venv/bin/python` or any env that has it) and a metadata
+  JSON in `templatesTarget.contentDir` whose `link` points at the hosted file.
+  Quality bar and sheet conventions: `references/template-quality.md` -- read
+  it before generating, the validator enforces its floor.
+- validate: `python3 scripts/validate_template.py <repo> <slug>` per template
+  (metadata schema + workbook opens, has an Instructions sheet, computes with
+  real formulas).
+- review/deploy: same preview branch, same gates, same deploy script.
+
 ## Gates
 
 Both gates honor `gates.*` from config: `manual` means the human runs the

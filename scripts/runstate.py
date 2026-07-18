@@ -52,8 +52,11 @@ class RunStateError(Exception):
 
 
 def run_path(repo_path: str | Path, date: str) -> Path:
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
-        raise RunStateError(f"run date must be YYYY-MM-DD, got {date!r}")
+    # A run id is a date, optionally suffixed with a content type so parallel
+    # pipelines (blogs, templates) each get one run per day: "2026-07-18",
+    # "2026-07-18-templates".
+    if not re.match(r"^\d{4}-\d{2}-\d{2}(-[a-z][a-z0-9-]*)?$", date):
+        raise RunStateError(f"run id must be YYYY-MM-DD[-type], got {date!r}")
     return runs_dir(repo_path) / f"{date}.json"
 
 
