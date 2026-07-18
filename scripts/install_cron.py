@@ -30,7 +30,20 @@ if _SCRIPTS_DIR not in sys.path:
 
 from config import ConfigError, load_config
 
-DEFAULT_COMMAND = 'claude -p "Run the blog-pipeline research stage for this repo"'
+# Default command runs the research stage headless with a deliberately minimal
+# toolset: no Bash, no Edit. An unattended agent with shell access is a
+# security liability (and permission classifiers rightly refuse to install
+# one); research only needs to read, search the web, and write the run file.
+# Posting to the review channel is left to a session hook or bot credentials.
+DEFAULT_COMMAND = (
+    'claude -p "Run the blog-pipeline research stage for this repo WITHOUT '
+    "shell access. FIRST check .blog-pipeline/runs/ for a file named "
+    "<today>.json: if it exists, exit without changing anything. Otherwise "
+    "glob the content dir for existing slugs, research topics per persona via "
+    "WebSearch, dedupe, and Write the run file (status "
+    'awaiting_topic_approval). Do not post to the review channel." '
+    '--allowedTools "Read,Grep,Glob,WebSearch,WebFetch,Write"'
+)
 MARKER_PREFIX = "# blog-pipeline:"
 LAUNCHD_LABEL_PREFIX = "ai.ujjwalks.blog-pipeline"
 LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"

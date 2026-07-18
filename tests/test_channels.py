@@ -198,6 +198,15 @@ class TestInstallCron(unittest.TestCase):
         self.assertIn('claude -p "Run the blog-pipeline research stage', line)
         self.assertTrue(line.endswith("# blog-pipeline:/tmp/example-site"))
 
+    def test_default_command_grants_no_shell(self):
+        # The unattended default must never include Bash or Edit in its
+        # toolset, and must refuse to clobber an existing day's run.
+        self.assertIn("--allowedTools", install_cron.DEFAULT_COMMAND)
+        allowed = install_cron.DEFAULT_COMMAND.split("--allowedTools")[1]
+        self.assertNotIn("Bash", allowed)
+        self.assertNotIn("Edit", allowed)
+        self.assertIn("if it exists, exit", install_cron.DEFAULT_COMMAND)
+
     def test_install_dry_run_never_shells_out(self):
         with mock.patch.object(install_cron.subprocess, "run") as m:
             summary = install_cron.install(

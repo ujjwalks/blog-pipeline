@@ -83,3 +83,21 @@ status, never advance past a failure.
   never auto-triggered on a failed preview.
 - **Dirty tree at deploy:** the deploy script refuses to run and aborts with
   a clear message. Commit or stash, then re-run `deploy`.
+
+## Operational rules learned in production
+
+- **One run per date.** `runs/<date>.json` is the unit; research must never
+  overwrite an existing day's file. A completed earlier run stays as the
+  record; a same-day re-research only happens if the operator archives the
+  old file deliberately.
+- **The daily cap is per day, not per run.** `blogsPerRun` bounds publishes
+  per calendar day across all runs. If the quota is spent, a fresh topic
+  list still gets posted, but its picks deploy the next day and the post
+  should say so.
+- **`run["channel"].posted` is the anti-repost marker.** Whichever transport
+  posts the review message (bot script, session Slack tools, CLI) sets
+  `run["channel"] = {"posted": true}` and saves. Session hooks use this
+  field to decide whether anything is pending.
+- **Publish dates are stamped at deploy.** Drafts carry their draft date;
+  the deploy stage re-stamps `date` (and structuredData dates) to the
+  publish day and re-validates before merging.

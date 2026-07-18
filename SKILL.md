@@ -46,8 +46,14 @@ Then render `assets/deploy.sh.tmpl` into the target repo (fill the
 
 ## research
 
+ONE run per date: if `runs/<today>.json` already exists, do not overwrite it --
+report its status and stop. `blogsPerRun` caps publishes per DAY across runs;
+if today's quota is already spent, the new list's picks deploy the next day
+(say so when posting).
+
 1. `python3 scripts/existing.py <repo>` -- existing slugs; never propose a
-   topic that duplicates one.
+   topic that duplicates one. (Headless/no-shell variant: glob the content dir
+   for filenames instead.)
 2. Judgment: before choosing search angles, read `references/personas.md` --
    it defines each persona's pains and what a winning topic looks like. Then
    for each persona, WebSearch what that audience is asking NOW (pains,
@@ -56,7 +62,12 @@ Then render `assets/deploy.sh.tmpl` into the target repo (fill the
    search prompt.
 3. Post the numbered list via the review channel
    (`python3 scripts/channels/slack.py post ...` or `cli.py`), each item:
-   title, persona, angle, target prompt, why-now.
+   title, persona, angle, target prompt, why-now. No bot credentials but an
+   interactive session with Slack tools? Post through those instead. Headless
+   with no credentials? Skip posting; a session hook or the next interactive
+   session posts it. WHOEVER posts must then set
+   `run["channel"] = {"posted": true}` and save -- that marker is what stops
+   the list being re-posted.
 4. Create the run and advance to `awaiting_topic_approval`.
 
 If every candidate dedupes away: post "nothing new today", advance
@@ -86,8 +97,10 @@ carry their draft date, and publishing a stale date misdates the post.
 Re-validate after stamping. Then run the generated deploy script
 (`bash <repo>/scripts/blog-deploy.sh`). It
 guards a clean tree, merges the draft branch, pushes to the prod branch.
-Verify the published URLs return 200 on the live domain, post confirmation to
-the channel, advance deploying -> published.
+Verify the published URLs return 200 on the live domain, and if the target
+auto-generates discovery files (sitemap.xml, llms.txt), confirm the new slugs
+appear there too. Post confirmation to the channel, advance
+deploying -> published.
 
 ## Gates
 
