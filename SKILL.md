@@ -83,6 +83,9 @@ researching -> published (legal no-op), stop.
    structured data). Drafting in parallel subagents is fine; validation is not
    optional: `python3 scripts/validate_blog.py <repo> <file>` per file --
    it enforces schema AND prose cleanliness (no em dashes, no curly quotes).
+   Every draft gets its OWN cover image, never one borrowed from another
+   post: `python3 scripts/gen_cover.py blog <out.png> --title ... --tag ...
+   --accent ...`, hosted with the site's static assets.
 3. Commit valid drafts to `<branchPrefix><date>`, push, obtain preview URLs
    per `review.mode`, and VERIFY each returns HTTP 200 -- a 302/401 means the
    preview sits behind auth (e.g. Vercel deployment protection); surface that
