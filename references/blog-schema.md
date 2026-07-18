@@ -20,7 +20,7 @@ the slug.
 | `excerpt` | string | 1 to 2 sentences, used in listings and meta description |
 | `author` | string | display name |
 | `authorId` | string | must resolve against `target.authors`; pick the author whose `category` matches the post |
-| `date` | string | `YYYY-MM-DD` |
+| `date` | string | `YYYY-MM-DD`. Set to the PUBLISH date at deploy time, not the draft date; the deploy stage re-stamps it. |
 | `coverImage` | string | URL; often a placeholder at draft time, see below |
 | `coverAlt` | string | descriptive alt text for the cover |
 | `format` | string | content markup format, e.g. `"md"` |

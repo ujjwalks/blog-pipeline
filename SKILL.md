@@ -80,7 +80,11 @@ researching -> published (legal no-op), stop.
 
 ## deploy
 
-Run the generated deploy script (`bash <repo>/scripts/blog-deploy.sh`). It
+Before merging, re-stamp each publishing blog's `date` (and any
+`datePublished`/`dateModified` in its structured data) to TODAY -- drafts
+carry their draft date, and publishing a stale date misdates the post.
+Re-validate after stamping. Then run the generated deploy script
+(`bash <repo>/scripts/blog-deploy.sh`). It
 guards a clean tree, merges the draft branch, pushes to the prod branch.
 Verify the published URLs return 200 on the live domain, post confirmation to
 the channel, advance deploying -> published.
