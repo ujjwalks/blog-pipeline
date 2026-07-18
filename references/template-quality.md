@@ -31,6 +31,16 @@ what the inputs are. Same humanization rules as blogs: no em/en dashes, no
 curly quotes, no filler. `link` points at the hosted file path
 (`/template-files/<slug>.xlsx`) so the gallery's CTA downloads directly.
 
+## Cover image
+
+Never borrow another template's image; a wrong screenshot on the card erodes
+trust in the whole gallery. Generate a real cover per template: render the
+model sheet's header plus a few sample rows as a styled HTML table (yellow
+input cells, computed columns, a totals row, a title bar naming the template)
+and screenshot it headless at ~1200px wide, height fitted to content. Host it
+with the site's static assets and point metadata `image` at it, `imageAlt` =
+title.
+
 ## Naming
 
 Slug mirrors the title, lowercase-hyphenated, ends with what it IS:
