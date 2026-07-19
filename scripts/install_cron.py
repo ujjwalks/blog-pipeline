@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from xml.sax.saxutils import escape as _xml_escape
 import sys
 from pathlib import Path
 
@@ -140,7 +141,7 @@ def install(cfg: dict, repo_path: str, command: str | None = None, dry_run: bool
         content = PLIST_TEMPLATE.format(
             label=label,
             repo_path=repo_path,
-            command=(command or DEFAULT_COMMAND).replace("&", "&amp;"),
+            command=_xml_escape(command or DEFAULT_COMMAND),
             hour=hour,
             minute=minute,
         )

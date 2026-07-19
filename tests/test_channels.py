@@ -207,6 +207,20 @@ class TestInstallCron(unittest.TestCase):
         self.assertNotIn("Edit", allowed)
         self.assertIn("if it exists, exit", install_cron.DEFAULT_COMMAND)
 
+
+    def test_launchd_plist_escapes_xml(self):
+        cfg = make_cfg()
+        cfg["scheduler"] = "launchd"
+        import tempfile, plistlib
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(install_cron, "LAUNCH_AGENTS_DIR", __import__("pathlib").Path(td)):
+                install_cron.install(cfg, "/tmp/example-site",
+                                     command='claude -p "write <today>.json" 2>&1')
+                plist_file = next(__import__("pathlib").Path(td).glob("*.plist"))
+                data = plistlib.loads(plist_file.read_bytes())
+                self.assertIn("<today>.json", data["ProgramArguments"][2])
+
     def test_install_dry_run_never_shells_out(self):
         with mock.patch.object(install_cron.subprocess, "run") as m:
             summary = install_cron.install(
