@@ -67,6 +67,11 @@ def load_run(repo_path: str | Path, date: str) -> dict | None:
     run = json.loads(path.read_text())
     if run.get("status") not in STATES:
         raise RunStateError(f"{path}: unknown status {run.get('status')!r}")
+    # Headless research agents write minimal run files; fill optional keys so
+    # every reader can rely on the full shape.
+    for key, default in (("topics", []), ("selected", []), ("drafted", []),
+                         ("deploy", {}), ("history", [])):
+        run.setdefault(key, default)
     return run
 
 
