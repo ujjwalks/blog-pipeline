@@ -191,7 +191,7 @@ def _validate_detail_keys(value: object) -> None:
             ):
                 raise RunStateError(f"event details contain sensitive key {key!r}")
             _validate_detail_keys(nested_value)
-    elif isinstance(value, list):
+    elif isinstance(value, (list, tuple)):
         for item in value:
             _validate_detail_keys(item)
 

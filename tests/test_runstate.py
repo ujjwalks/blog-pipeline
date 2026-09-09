@@ -83,6 +83,17 @@ class AutoRunStateTest(unittest.TestCase):
             )
         self.assertNotIn(secret_value, str(context.exception))
 
+    def test_record_event_rejects_sensitive_key_nested_in_tuple_without_exposing_value(self):
+        secret_value = "tuple-secret-value"
+        with self.assertRaises(RunStateError) as context:
+            record_event(
+                {"status": SELECTING, "history": []},
+                "candidate_scored",
+                "now",
+                {"metadata": ({"apiToken": secret_value},)},
+            )
+        self.assertNotIn(secret_value, str(context.exception))
+
     def test_advance_does_not_mutate_input(self):
         run = {"status": RESEARCHING, "history": []}
         advanced = advance(run, SELECTING, "2026-09-08T12:10:00+05:30")
