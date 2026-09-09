@@ -178,6 +178,12 @@ class TestDedupe(unittest.TestCase):
         self.assertIn("duplicateScore", dropped[0])
         self.assertEqual(dropped[0]["duplicateReason"], "exact identity")
 
+    def test_legacy_title_identity_rejects_material_update(self):
+        candidate = {"slug": "monthly-close-checklist-2026-update", "title": "Monthly Close Checklist", "materialUpdate": {"date": "2026-07-28", "summary": "revised"}}
+        fresh, dropped = dedupe([candidate], ["monthly-close-checklist"])
+        self.assertEqual(fresh, [])
+        self.assertEqual(dropped[0]["duplicateReason"], "exact identity")
+
 
 class TestFindDuplicate(unittest.TestCase):
     def test_exact_identity_wins_over_earlier_semantic_tie(self):
@@ -335,6 +341,11 @@ class TestFindDuplicate(unittest.TestCase):
         }
         self.assertIsNotNone(find_duplicate(candidate, posts, [], 0.40))
 
+    def test_material_update_rejects_impossible_iso_date(self):
+        posts = [PostRecord("quickbooks-ai", "QuickBooks AI", "Available AI features", ("QuickBooks AI",))]
+        candidate = {"slug": "quickbooks-ai-2026-update", "title": "QuickBooks AI 2026 Update", "intentSummary": "new July capabilities", "primaryKeyword": "QuickBooks AI", "materialUpdate": {"date": "2026-99-99", "summary": "launched"}}
+        self.assertIsNotNone(find_duplicate(candidate, posts, [], 0.40))
+
     def test_material_update_residual_intent_ignores_shared_primary_keyword(self):
         posts = [PostRecord("quickbooks-ai", "QuickBooks AI", "Available features", ("QuickBooks AI",))]
         candidate = {
@@ -343,6 +354,19 @@ class TestFindDuplicate(unittest.TestCase):
             "materialUpdate": {"date": "2026-07-28", "summary": "transactional actions launched"},
         }
         self.assertIsNone(find_duplicate(candidate, posts, [], 0.40))
+
+    def test_material_update_uses_selected_record_when_slug_collides(self):
+        posts = [PostRecord("same-slug", "Old Topic", "Legacy intent", ("shared",))]
+        recent = [{"slug": "same-slug", "title": "New Topic", "intentSummary": "new intent", "primaryKeyword": "new"}]
+        candidate = {"slug": "new-candidate", "title": "New Topic 2026 Update", "intentSummary": "new intent", "primaryKeyword": "new", "materialUpdate": {"date": "2026-07-28", "summary": "launched"}}
+        match = find_duplicate(candidate, posts, recent, 0.4)
+        self.assertIsNotNone(match)
+        self.assertEqual(match.source, "recent-run")
+
+    def test_material_update_keyword_only_intent_is_not_treated_as_residual_overlap(self):
+        posts = [PostRecord("quickbooks-ai", "QuickBooks AI", "Available features", ("QuickBooks AI",))]
+        candidate = {"slug": "quickbooks-ai-2026-update", "title": "QuickBooks AI 2026 Update", "intentSummary": "QuickBooks AI", "primaryKeyword": "QuickBooks AI", "materialUpdate": {"date": "2026-07-28", "summary": "launched"}}
+        self.assertIsNone(find_duplicate(candidate, posts, [], 0.4))
 
     def test_material_update_does_not_bypass_similar_residual_intent(self):
         posts = [

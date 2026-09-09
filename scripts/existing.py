@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import sys
 import json
+import datetime
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -73,6 +74,14 @@ def _jaccard(a: frozenset, b: frozenset) -> float:
     if not a or not b:
         return 0.0
     return len(a & b) / len(a | b)
+
+
+def _valid_date(value: str) -> bool:
+    try:
+        datetime.date.fromisoformat(str(value).strip())
+        return bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(value).strip()))
+    except (TypeError, ValueError):
+        return False
 
 
 def _scalar(value: str) -> str:
@@ -183,24 +192,23 @@ def find_duplicate(candidate: dict, posts: list[PostRecord], recent_topics: list
         )
         exact = bool(candidate_slug and candidate_slug == slug) or bool(candidate_title and candidate_title == title)
         if exact or score >= threshold:
-            matches.append(DuplicateMatch(source, slug, title, 1.0 if exact else score, "exact identity" if exact else "intent overlap"))
+            matches.append((DuplicateMatch(source, slug, title, 1.0 if exact else score, "exact identity" if exact else "intent overlap"), item))
     if not matches:
         return None
     # Identity is authoritative, regardless of a preceding semantic match.
-    exact_matches = [value for value in matches if value.reason == "exact identity"]
-    closest = max(exact_matches or matches, key=lambda value: value.score)
+    exact_matches = [value for value in matches if value[0].reason == "exact identity"]
+    closest, matched = max(exact_matches or matches, key=lambda value: value[0].score)
     update = candidate.get("materialUpdate")
     update_framed = (
         isinstance(update, dict)
         and bool(str(update.get("date", "")).strip())
         and bool(str(update.get("summary", "")).strip())
         and bool(re.search(r"\b(update|new|changed|202\d)\b", candidate.get("title", ""), re.IGNORECASE))
-        and bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(update.get("date", "")).strip()))
+        and _valid_date(update.get("date", ""))
     )
     if update_framed and closest.reason != "exact identity":
         # A material update is a bypass only when it introduces genuinely new
         # intent; retaining the old intent still indicates a duplicate.
-        matched = next(item for source, item in items if normalize(item.slug if isinstance(item, PostRecord) else item.get("slug", "")) == closest.slug)
         shared_keyword = frozenset(normalize(candidate.get("primaryKeyword", "")).replace("-", " ").split())
         candidate_intent = frozenset(normalize(candidate.get("intentSummary", "")).replace("-", " ").split()) - shared_keyword
         matched_intent = _intent_tokens(matched) - shared_keyword
@@ -217,7 +225,7 @@ def dedupe(candidates: list, existing_slugs: list) -> tuple[list, list]:
     tokens and any existing slug's tokens reaches SIMILARITY_THRESHOLD.
     Dropped candidates get a "droppedBecause" explanation attached.
     """
-    posts = [PostRecord(normalize(s), "", "", ()) for s in existing_slugs]
+    posts = [PostRecord(normalize(s), str(s).replace("-", " "), "", ()) for s in existing_slugs]
 
     fresh: list = []
     dropped: list = []
