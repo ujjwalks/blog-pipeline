@@ -366,7 +366,10 @@ def validate_artifact(artifact: dict, cfg: dict, publish_date: str, existing_pos
     h2_count = len(H2_RE.findall(content))
     if not 3 <= h2_count <= 6:
         errors.append("blog.content: 3 to 6 h2 sections required")
-    controls_section = _section(content, lambda heading: "control" in heading)
+    controls_section = _section(
+        content,
+        lambda heading: "control" in heading and not ("why" in heading and "now" in heading),
+    )
     if controls_section is None:
         errors.append("blog.content: accounting controls section required")
     lower_content = _plain(controls_section or "").lower()

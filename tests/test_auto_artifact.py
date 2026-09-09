@@ -207,6 +207,13 @@ class AutoArtifactTest(unittest.TestCase):
         self.assertTrue(any("controls section" in error for error in errors))
         self.assertTrue(any("why-now section" in error for error in errors))
 
+    def test_why_now_control_matrix_heading_does_not_shadow_controls_section(self):
+        artifact = valid_artifact()
+        artifact["blog"]["content"] = artifact["blog"]["content"].replace(
+            "Why QuickBooks AI matters now", "Why the QuickBooks AI control matrix matters now"
+        )
+        self.assertEqual(validate_artifact(artifact, self.cfg, "2026-09-09", [], []), [])
+
     def test_missing_repository_or_internal_route_is_an_error(self):
         missing_cfg = copy.deepcopy(self.cfg)
         missing_cfg["target"]["repoPath"] = str(self.repo / "missing")
