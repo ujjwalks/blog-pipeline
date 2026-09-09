@@ -187,10 +187,10 @@ def _graph_nodes(blog, errors):
         return None, None
     graph = structured.get("@graph")
     nodes = graph if isinstance(graph, list) else [structured]
-    posting = next((node for node in nodes if isinstance(node, dict) and node.get("@type") in ("Article", "BlogPosting")), None)
+    posting = next((node for node in nodes if isinstance(node, dict) and node.get("@type") == "BlogPosting"), None)
     faq = next((node for node in nodes if isinstance(node, dict) and node.get("@type") == "FAQPage"), None)
     if posting is None:
-        errors.append("blog.structuredData: Article or BlogPosting node required")
+        errors.append("blog.structuredData: BlogPosting node required")
     if faq is None:
         errors.append("blog.structuredData: FAQPage node required")
     return posting, faq
@@ -215,6 +215,8 @@ def _validate_sources(topic, cfg, errors):
             errors.append(f"{where}.publishedOrUpdated: valid YYYY-MM-DD required")
         if source.get("authority") == "primary":
             primary += 1
+        elif source.get("authority") not in ("authoritative", "secondary"):
+            errors.append(f"{where}.authority: must be primary, authoritative, or secondary")
     if primary == 0:
         errors.append("topic.sources: at least one primary source required")
 
@@ -235,8 +237,18 @@ def _validate_scores(topic, cfg, errors):
         errors.append(f"topic.scores.sourceAuthority: must reach {cfg['automation']['minSourceAuthority']}")
 
 
+def _section(content, predicate):
+    headings = list(H2_RE.finditer(content))
+    for index, match in enumerate(headings):
+        if predicate(_plain(match.group(1)).lower()):
+            end = headings[index + 1].start() if index + 1 < len(headings) else len(content)
+            return content[match.end():end]
+    return None
+
+
 def _validate_faq(content, faq, errors):
-    visible = [(_plain(question), _plain(answer)) for question, answer in FAQ_RE.findall(content)]
+    faq_section = _section(content, lambda heading: "frequently asked" in heading or heading == "faq")
+    visible = [(_plain(question), _plain(answer)) for question, answer in FAQ_RE.findall(faq_section or "")]
     if not 4 <= len(visible) <= 5:
         errors.append("blog.content: 4 to 5 visible FAQs required")
     entities = faq.get("mainEntity") if isinstance(faq, dict) else None
@@ -256,6 +268,7 @@ def _validate_internal_links(content, cfg, errors):
         errors.append("blog.content: 2 to 4 contextual internal links required")
     repo = Path(cfg.get("target", {}).get("repoPath", ""))
     if not repo.is_dir():
+        errors.append(f"blog.content: configured repository does not exist: {repo}")
         return
     for href in links:
         clean = href.split("?", 1)[0].split("#", 1)[0].strip("/")
@@ -289,13 +302,32 @@ def validate_artifact(artifact: dict, cfg: dict, publish_date: str, existing_pos
         return errors
     if not _required_object(blog, BLOG_REQUIRED, BLOG_REQUIRED, "blog", errors):
         return errors
-    _required_object(cover, COVER_REQUIRED, COVER_REQUIRED, "cover", errors)
+    cover_valid = _required_object(cover, COVER_REQUIRED, COVER_REQUIRED, "cover", errors)
     _validate_scores(topic, cfg, errors)
     _validate_sources(topic, cfg, errors)
-    if not _nonempty_text(cover.get("tag")):
-        errors.append("cover.tag: non-empty text required")
-    if not isinstance(cover.get("accent"), str) or not HEX_RE.fullmatch(cover["accent"]):
-        errors.append("cover.accent: six-digit hex color required")
+    for field in TOPIC_REQUIRED:
+        if field not in ("scores", "sources") and not _nonempty_text(topic.get(field)):
+            errors.append(f"topic.{field}: non-empty text required")
+    material_update = topic.get("materialUpdate")
+    if material_update is not None:
+        if _required_object(material_update, ("date", "summary"), ("date", "summary"), "topic.materialUpdate", errors):
+            if not _valid_date(material_update.get("date")):
+                errors.append("topic.materialUpdate.date: valid YYYY-MM-DD required")
+            if not _nonempty_text(material_update.get("summary")):
+                errors.append("topic.materialUpdate.summary: non-empty text required")
+    for field in BLOG_REQUIRED:
+        if field not in ("order", "structuredData") and not _nonempty_text(blog.get(field)):
+            errors.append(f"blog.{field}: non-empty text required")
+    order = blog.get("order")
+    if not isinstance(order, (int, float)) or isinstance(order, bool):
+        errors.append("blog.order: number required")
+    if not isinstance(blog.get("structuredData"), dict):
+        errors.append("blog.structuredData: object required")
+    if cover_valid:
+        if not _nonempty_text(cover.get("tag")):
+            errors.append("cover.tag: non-empty text required")
+        if not isinstance(cover.get("accent"), str) or not HEX_RE.fullmatch(cover["accent"]):
+            errors.append("cover.accent: six-digit hex color required")
 
     slug = blog.get("slug")
     if not isinstance(slug, str) or not SLUG_RE.fullmatch(slug):
@@ -334,7 +366,10 @@ def validate_artifact(artifact: dict, cfg: dict, publish_date: str, existing_pos
     h2_count = len(H2_RE.findall(content))
     if not 3 <= h2_count <= 6:
         errors.append("blog.content: 3 to 6 h2 sections required")
-    lower_content = _plain(content).lower()
+    controls_section = _section(content, lambda heading: "control" in heading)
+    if controls_section is None:
+        errors.append("blog.content: accounting controls section required")
+    lower_content = _plain(controls_section or "").lower()
     for term in ("source data", "calculation", "review", "decision"):
         if term not in lower_content:
             errors.append(f"blog.content: accounting control term missing: {term}")
@@ -367,8 +402,13 @@ def validate_artifact(artifact: dict, cfg: dict, publish_date: str, existing_pos
     primary_urls = [source.get("url") for source in topic.get("sources", []) if isinstance(source, dict) and source.get("authority") == "primary"]
     if primary_urls and not any(url in content for url in primary_urls):
         errors.append("blog.content: at least one primary source must be linked near its claim")
-    if f'href="{base_url}"' not in content and f"href='{base_url}'" not in content:
-        errors.append("blog.content: one FinBoard call to action required")
+    why_section = _section(content, lambda heading: "why" in heading and "now" in heading)
+    source_urls = [source.get("url") for source in topic.get("sources", []) if isinstance(source, dict)]
+    if why_section is None or not re.search(r"\b20\d{2}-\d{2}-\d{2}\b", why_section) or not any(url and url in why_section for url in source_urls):
+        errors.append("blog.content: dated why-now section with a source link required")
+    cta_urls = [href.rstrip("/") for href in HREF_RE.findall(content) if href.rstrip("/") == base_url]
+    if len(cta_urls) != 1:
+        errors.append("blog.content: exactly one FinBoard call to action required")
     try:
         article_path, cover_path = safe_artifact_paths(Path(cfg["target"]["repoPath"]), cfg, artifact)
         if article_path.exists():

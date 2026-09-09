@@ -3,6 +3,7 @@
 import copy
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -107,6 +108,19 @@ def valid_artifact():
 
 
 class AutoArtifactTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self._tmp.name)
+        self.cfg = copy.deepcopy(AUTO_CONFIG)
+        self.cfg["target"]["repoPath"] = str(self.repo)
+        content = self.repo / "frontend/content/blog"
+        content.mkdir(parents=True)
+        (content / "how-to-design-a-trustworthy-ai-finance-architecture.json").write_text("{}")
+        (content / "designing-audit-ready-controls-without-slowing-the-close.json").write_text("{}")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
     def test_schema_requires_publish_payload_or_no_topic_reason(self):
         self.assertEqual(ARTIFACT_JSON_SCHEMA["oneOf"][0]["required"], ["outcome", "topic", "blog", "cover"])
         self.assertEqual(ARTIFACT_JSON_SCHEMA["oneOf"][1]["required"], ["outcome", "reason"])
@@ -119,17 +133,17 @@ class AutoArtifactTest(unittest.TestCase):
             parse_claude_output(json.dumps({"result": 4}))
 
     def test_valid_publish_artifact_passes(self):
-        self.assertEqual(validate_artifact(valid_artifact(), AUTO_CONFIG, "2026-09-09", [], []), [])
+        self.assertEqual(validate_artifact(valid_artifact(), self.cfg, "2026-09-09", [], []), [])
 
     def test_nothing_publishable_requires_nonempty_reason(self):
-        self.assertEqual(validate_artifact({"outcome": "nothing_publishable", "reason": "No qualified topic"}, AUTO_CONFIG, "2026-09-09", [], []), [])
-        self.assertTrue(validate_artifact({"outcome": "nothing_publishable", "reason": " "}, AUTO_CONFIG, "2026-09-09", [], []))
+        self.assertEqual(validate_artifact({"outcome": "nothing_publishable", "reason": "No qualified topic"}, self.cfg, "2026-09-09", [], []), [])
+        self.assertTrue(validate_artifact({"outcome": "nothing_publishable", "reason": " "}, self.cfg, "2026-09-09", [], []))
 
     def test_rejects_low_score_and_missing_primary_source(self):
         artifact = valid_artifact()
         artifact["topic"]["scores"]["sourceAuthority"] = 3
         artifact["topic"]["sources"] = [dict(source, authority="secondary") for source in artifact["topic"]["sources"]]
-        errors = validate_artifact(artifact, AUTO_CONFIG, "2026-09-09", [], [])
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", [], [])
         self.assertTrue(any("sourceAuthority" in error for error in errors))
         self.assertTrue(any("primary source" in error for error in errors))
 
@@ -138,7 +152,7 @@ class AutoArtifactTest(unittest.TestCase):
         artifact["blog"]["authorId"] = "someone-else"
         artifact["blog"]["date"] = "2026-09-08"
         posts = [PostRecord(artifact["topic"]["slug"], "Older title", "Existing intent", ())]
-        errors = validate_artifact(artifact, AUTO_CONFIG, "2026-09-09", posts, [])
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", posts, [])
         self.assertTrue(any("duplicate" in error for error in errors))
         self.assertTrue(any("authorId" in error for error in errors))
         self.assertTrue(any("publish date" in error for error in errors))
@@ -149,9 +163,67 @@ class AutoArtifactTest(unittest.TestCase):
         graph[0]["mainEntityOfPage"]["@id"] = "https://finboard.ai/blog/wrong"
         graph[1]["mainEntity"][0]["acceptedAnswer"]["text"] = "Different answer"
         artifact["blog"]["content"] = artifact["blog"]["content"].replace("<h2>Limits and common mistakes</h2>", "")
-        errors = validate_artifact(artifact, AUTO_CONFIG, "2026-09-09", [], [])
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", [], [])
         self.assertTrue(any("canonical" in error for error in errors))
         self.assertTrue(any("FAQ" in error for error in errors))
+
+    def test_malformed_cover_returns_errors_instead_of_crashing(self):
+        artifact = valid_artifact()
+        artifact["cover"] = []
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", [], [])
+        self.assertIn("cover: must be an object", errors)
+
+    def test_explicit_validation_matches_schema_types_and_enums(self):
+        artifact = valid_artifact()
+        artifact["topic"]["persona"] = ""
+        artifact["topic"]["sources"][0]["authority"] = "bogus"
+        artifact["topic"]["materialUpdate"] = {"date": "2026-99-99", "summary": "New capability", "extra": "value"}
+        artifact["blog"]["order"] = "first"
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", [], [])
+        self.assertTrue(any("topic.persona" in error for error in errors))
+        self.assertTrue(any("authority" in error for error in errors))
+        self.assertTrue(any("materialUpdate.date" in error for error in errors))
+        self.assertTrue(any("materialUpdate.extra" in error for error in errors))
+        self.assertTrue(any("blog.order" in error for error in errors))
+
+    def test_requires_exactly_one_cta_and_blogposting(self):
+        artifact = valid_artifact()
+        artifact["blog"]["content"] += '<p><a href="https://finboard.ai">Another FinBoard CTA</a></p>'
+        artifact["blog"]["structuredData"]["@graph"][0]["@type"] = "Article"
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", [], [])
+        self.assertTrue(any("exactly one FinBoard call to action" in error for error in errors))
+        self.assertTrue(any("BlogPosting" in error for error in errors))
+
+    def test_ignores_non_faq_h3_and_requires_control_and_why_now_sections(self):
+        artifact = valid_artifact()
+        artifact["blog"]["content"] = artifact["blog"]["content"].replace(
+            "<h2>What finance teams can automate</h2>",
+            "<h2>What finance teams can automate</h2><h3>A useful subsection</h3><p>This is not a frequently asked question.</p>",
+        )
+        self.assertEqual(validate_artifact(artifact, self.cfg, "2026-09-09", [], []), [])
+        artifact["blog"]["content"] = artifact["blog"]["content"].replace("<h2>Accounting controls still matter</h2>", "<h2>Operational guidance</h2>")
+        artifact["blog"]["content"] = artifact["blog"]["content"].replace("<h2>Why QuickBooks AI matters now</h2>", "<h2>Background</h2>")
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", [], [])
+        self.assertTrue(any("controls section" in error for error in errors))
+        self.assertTrue(any("why-now section" in error for error in errors))
+
+    def test_missing_repository_or_internal_route_is_an_error(self):
+        missing_cfg = copy.deepcopy(self.cfg)
+        missing_cfg["target"]["repoPath"] = str(self.repo / "missing")
+        errors = validate_artifact(valid_artifact(), missing_cfg, "2026-09-09", [], [])
+        self.assertTrue(any("repository does not exist" in error for error in errors))
+        (self.repo / "frontend/content/blog/designing-audit-ready-controls-without-slowing-the-close.json").unlink()
+        errors = validate_artifact(valid_artifact(), self.cfg, "2026-09-09", [], [])
+        self.assertTrue(any("does not resolve locally" in error for error in errors))
+
+    def test_rejects_too_few_headings(self):
+        artifact = valid_artifact()
+        content = artifact["blog"]["content"]
+        for heading in ("What finance teams can automate", "Accounting controls still matter", "Limits and common mistakes"):
+            content = content.replace(f"<h2>{heading}</h2>", f"<p>{heading}</p>")
+        artifact["blog"]["content"] = content
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", [], [])
+        self.assertIn("blog.content: 3 to 6 h2 sections required", errors)
 
     def test_safe_paths_reject_escape_and_return_canonical_paths(self):
         article, cover = safe_artifact_paths(Path("/tmp/app"), AUTO_CONFIG, valid_artifact())
