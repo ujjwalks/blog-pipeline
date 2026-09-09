@@ -53,3 +53,14 @@ class AutoConfigTest(unittest.TestCase):
         cfg["blogsPerRun"] = 2
         self.assertIn("blogsPerRun: automatic mode requires blogsPerRun to equal 1", validate_config(cfg))
 
+    def test_rejects_non_india_timezone_in_automatic_mode(self):
+        cfg = copy.deepcopy(BASE)
+        cfg["automation"]["timezone"] = "UTC"
+        self.assertIn("automation.timezone: must equal 'Asia/Kolkata' in automatic mode", validate_config(cfg))
+
+    def test_manual_and_poll_gate_modes_remain_valid(self):
+        for mode in ("manual", "poll"):
+            cfg = copy.deepcopy(BASE)
+            cfg["gates"] = {"topicApproval": mode, "contentApproval": mode}
+            cfg.pop("automation")
+            self.assertEqual(validate_config(cfg), [], mode)

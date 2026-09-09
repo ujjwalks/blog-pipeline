@@ -32,6 +32,12 @@ AUTOMATION_REQUIRED_FIELDS = (
     "productionBaseUrl", "sitemapUrl", "verificationAttempts",
     "verificationIntervalSeconds", "validationCommands",
 )
+AUTOMATION_NUMERIC_FIELDS = (
+    "minTopicScore", "minSourceAuthority", "verificationAttempts",
+    "verificationIntervalSeconds",
+)
+AUTOMATION_URL_FIELDS = ("productionBaseUrl", "sitemapUrl")
+AUTOMATIC_TIMEZONE = "Asia/Kolkata"
 
 CONFIG_DIRNAME = ".blog-pipeline"
 CONFIG_FILENAME = "config.json"
@@ -104,14 +110,16 @@ def _validate_automation(cfg: dict, errors: list[str]) -> None:
     for field in AUTOMATION_REQUIRED_FIELDS:
         if field not in automation:
             errors.append(f"automation.{field}: required in automatic mode")
+    if automation.get("timezone") != AUTOMATIC_TIMEZONE:
+        errors.append("automation.timezone: must equal 'Asia/Kolkata' in automatic mode")
     threshold = automation.get("similarityThreshold")
     if not isinstance(threshold, (int, float)) or not 0 < threshold <= 1:
         errors.append("automation.similarityThreshold: must be greater than 0 and at most 1")
-    for field in ("minTopicScore", "minSourceAuthority", "verificationAttempts", "verificationIntervalSeconds"):
+    for field in AUTOMATION_NUMERIC_FIELDS:
         value = automation.get(field)
         if not isinstance(value, int) or value < 1:
             errors.append(f"automation.{field}: must be a positive integer")
-    for field in ("productionBaseUrl", "sitemapUrl"):
+    for field in AUTOMATION_URL_FIELDS:
         value = automation.get(field, "")
         if not isinstance(value, str) or not value.startswith("https://"):
             errors.append(f"automation.{field}: must be an https URL")
