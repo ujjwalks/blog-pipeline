@@ -403,8 +403,14 @@ def validate_artifact(artifact: dict, cfg: dict, publish_date: str, existing_pos
     if primary_urls and not any(url in content for url in primary_urls):
         errors.append("blog.content: at least one primary source must be linked near its claim")
     why_section = _section(content, lambda heading: "why" in heading and "now" in heading)
-    source_urls = [source.get("url") for source in topic.get("sources", []) if isinstance(source, dict)]
-    if why_section is None or not re.search(r"\b20\d{2}-\d{2}-\d{2}\b", why_section) or not any(url and url in why_section for url in source_urls):
+    why_hrefs = set(HREF_RE.findall(why_section or ""))
+    linked_dated_source = any(
+        isinstance(source, dict)
+        and source.get("url") in why_hrefs
+        and source.get("publishedOrUpdated") in _plain(why_section or "")
+        for source in topic.get("sources", [])
+    )
+    if why_section is None or not linked_dated_source:
         errors.append("blog.content: dated why-now section with a source link required")
     cta_urls = [href.rstrip("/") for href in HREF_RE.findall(content) if href.rstrip("/") == base_url]
     if len(cta_urls) != 1:

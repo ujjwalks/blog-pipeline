@@ -216,6 +216,18 @@ class AutoArtifactTest(unittest.TestCase):
         errors = validate_artifact(valid_artifact(), self.cfg, "2026-09-09", [], [])
         self.assertTrue(any("does not resolve locally" in error for error in errors))
 
+    def test_why_now_requires_linked_source_with_matching_date(self):
+        artifact = valid_artifact()
+        source_url = artifact["topic"]["sources"][0]["url"]
+        artifact["blog"]["content"] = artifact["blog"]["content"].replace(f'href="{source_url}"', f'data-source="{source_url}"')
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", [], [])
+        self.assertTrue(any("dated why-now section" in error for error in errors))
+
+        artifact = valid_artifact()
+        artifact["blog"]["content"] = artifact["blog"]["content"].replace("2026-07-28", "2026-07-27")
+        errors = validate_artifact(artifact, self.cfg, "2026-09-09", [], [])
+        self.assertTrue(any("dated why-now section" in error for error in errors))
+
     def test_rejects_too_few_headings(self):
         artifact = valid_artifact()
         content = artifact["blog"]["content"]
