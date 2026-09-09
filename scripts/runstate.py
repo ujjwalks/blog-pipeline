@@ -25,6 +25,15 @@ DRAFTING = "drafting"
 AWAITING_CONTENT_APPROVAL = "awaiting_content_approval"
 DEPLOYING = "deploying"
 PUBLISHED = "published"
+SELECTING = "selecting"
+VALIDATING = "validating"
+COMMITTING = "committing"
+VERIFYING = "verifying"
+FAILED = "failed"
+NOTHING_PUBLISHABLE = "nothing_publishable"
+ALREADY_PUBLISHED = "already_published"
+SKIPPED_LOCKED = "skipped_locked"
+DRY_RUN_VALIDATED = "dry_run_validated"
 
 STATES = (
     RESEARCHING,
@@ -33,17 +42,52 @@ STATES = (
     AWAITING_CONTENT_APPROVAL,
     DEPLOYING,
     PUBLISHED,
+    SELECTING,
+    VALIDATING,
+    COMMITTING,
+    VERIFYING,
+    FAILED,
+    NOTHING_PUBLISHABLE,
+    ALREADY_PUBLISHED,
+    SKIPPED_LOCKED,
+    DRY_RUN_VALIDATED,
 )
 
-# Legal transitions. published is terminal. A no-op day (nothing new found)
-# jumps researching -> published directly.
+# Automatic terminal outcomes. ALREADY_PUBLISHED and SKIPPED_LOCKED may be
+# created at startup because no pipeline work needs to begin for either.
+AUTO_TERMINAL_STATES = (
+    PUBLISHED,
+    FAILED,
+    NOTHING_PUBLISHABLE,
+    ALREADY_PUBLISHED,
+    SKIPPED_LOCKED,
+    DRY_RUN_VALIDATED,
+)
+
+# Legal transitions. Manual gates remain available; automatic runs follow the
+# SELECTING -> VALIDATING -> COMMITTING -> VERIFYING path.
 TRANSITIONS = {
-    RESEARCHING: (AWAITING_TOPIC_APPROVAL, PUBLISHED),
+    RESEARCHING: (
+        AWAITING_TOPIC_APPROVAL,
+        SELECTING,
+        PUBLISHED,
+        FAILED,
+        NOTHING_PUBLISHABLE,
+    ),
     AWAITING_TOPIC_APPROVAL: (DRAFTING,),
-    DRAFTING: (AWAITING_CONTENT_APPROVAL,),
+    SELECTING: (DRAFTING, FAILED, NOTHING_PUBLISHABLE),
+    DRAFTING: (AWAITING_CONTENT_APPROVAL, VALIDATING, FAILED),
     AWAITING_CONTENT_APPROVAL: (DEPLOYING,),
-    DEPLOYING: (PUBLISHED,),
+    VALIDATING: (COMMITTING, FAILED, DRY_RUN_VALIDATED),
+    COMMITTING: (DEPLOYING, FAILED),
+    DEPLOYING: (VERIFYING, PUBLISHED, FAILED),
+    VERIFYING: (PUBLISHED, FAILED),
     PUBLISHED: (),
+    FAILED: (),
+    NOTHING_PUBLISHABLE: (),
+    ALREADY_PUBLISHED: (),
+    SKIPPED_LOCKED: (),
+    DRY_RUN_VALIDATED: (),
 }
 
 
@@ -100,22 +144,60 @@ def create_run(repo_path: str | Path, date: str) -> dict:
     return run
 
 
+def create_terminal_run(
+    repo_path: str | Path,
+    date: str,
+    status: str,
+    at: str,
+    details: dict | None = None,
+) -> dict:
+    """Record an idempotent startup outcome without beginning a run."""
+    if status not in (ALREADY_PUBLISHED, SKIPPED_LOCKED):
+        raise RunStateError(f"startup terminal status must be already_published or skipped_locked, got {status!r}")
+    existing = load_run(repo_path, date)
+    if existing is not None:
+        return existing
+    run = {
+        "date": date,
+        "status": status,
+        "topics": [],
+        "selected": [],
+        "drafted": [],
+        "deploy": {},
+        "history": [],
+    }
+    run = record_event(run, status, at, details)
+    save_run(repo_path, run)
+    return run
+
+
+def record_event(run: dict, event: str, at: str, details: dict | None = None) -> dict:
+    """Return a copy of run with an auditable event appended to its history."""
+    updated = {**run, "history": [*run.get("history", [])]}
+    entry = {"event": event, "at": at}
+    if details:
+        entry["details"] = details
+    updated["history"].append(entry)
+    return updated
+
+
 def advance(run: dict, new_status: str, at: str | None = None) -> dict:
     """Move the run to new_status, enforcing the state machine."""
     current = run["status"]
     if new_status == current:
-        return run  # idempotent re-entry
+        return {**run, "history": [*run.get("history", [])]}  # idempotent re-entry
     allowed = TRANSITIONS.get(current, ())
     if new_status not in allowed:
         raise RunStateError(
             f"illegal transition {current} -> {new_status} (allowed: {list(allowed)})"
         )
-    run["status"] = new_status
+    updated = {**run, "history": [*run.get("history", [])]}
+    updated["status"] = new_status
     entry = {"status": new_status}
     if at:
         entry["at"] = at
-    run["history"].append(entry)
-    return run
+    updated["history"].append(entry)
+    return updated
 
 
 # --- Pick parsing (shared by both gate paths) ---
@@ -175,7 +257,8 @@ def main(argv):
     print(f"date: {run['date']}  status: {run['status']}")
     print(f"topics: {len(run['topics'])}  selected: {run['selected']}  drafted: {len(run['drafted'])}")
     for h in run["history"]:
-        print(f"  -> {h['status']}" + (f" at {h['at']}" if "at" in h else ""))
+        label = h.get("status", h.get("event", "unknown"))
+        print(f"  -> {label}" + (f" at {h['at']}" if "at" in h else ""))
     return 0
 
 
