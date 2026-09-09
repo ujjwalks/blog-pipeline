@@ -1,14 +1,9 @@
 ---
 name: blog-pipeline
 description: >-
-  Runs a recurring blog production pipeline for any website: research topic
-  ideas per audience persona, post a top-N list to a review channel (Slack or
-  CLI), draft the approved topics in the site's blog format, push a preview
-  for human review, then deploy to production. Use when the user asks to set
-  up or run a blog pipeline, research blog topics, draft or publish scheduled
-  blogs, review drafted posts, or advance a pending blog run ("run research",
-  "draft the picks", "deploy the approved posts", "blog pipeline status") --
-  even if they only say "do the daily blogs".
+  Use when a website needs recurring blog research, drafting, review,
+  publishing, a pending scheduled blog run advanced, or one unattended daily
+  blog decision.
 ---
 
 # blog-pipeline
@@ -31,7 +26,9 @@ Route on the sub-command the user asked for (default: `status`):
 | `daily-auto` | one unattended research-and-draft decision; available only when both approval gates equal `auto` |
 | `status` | anything else -- show where the run is stuck |
 
-Validate config before any stage: `python3 scripts/config.py <repo>`.
+For interactive stages, validate config first with
+`python3 scripts/config.py <repo>`. The `daily-auto` caller validates config
+before invoking the model; that route never runs the command itself.
 Show run state: `python3 scripts/runstate.py <repo> <date>`.
 
 ## setup (interactive)
@@ -81,6 +78,10 @@ researching -> published (legal no-op), stop.
 Use this route only when `gates.topicApproval` and `gates.contentApproval`
 both equal `auto`. If either differs, stop with a configuration error. This is
 the only exception to the human gates below.
+
+The deterministic caller supplies the already-validated configuration and
+local publish date. Do not execute config validation or infer gate values from
+prose when the supplied configuration says otherwise.
 
 Read [references/auto-blog-template.md](references/auto-blog-template.md), the
 complete configured personas, the entire existing blog inventory, and recent
