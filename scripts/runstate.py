@@ -35,6 +35,9 @@ ALREADY_PUBLISHED = "already_published"
 SKIPPED_LOCKED = "skipped_locked"
 DRY_RUN_VALIDATED = "dry_run_validated"
 
+AUTO_RUN_ID_PATTERN = r"\d{4}-\d{2}-\d{2}-auto"
+SENSITIVE_DETAIL_KEY_SEGMENTS = ("secret", "token", "password", "webhook")
+
 STATES = (
     RESEARCHING,
     AWAITING_TOPIC_APPROVAL,
@@ -152,6 +155,8 @@ def create_terminal_run(
     details: dict | None = None,
 ) -> dict:
     """Record an idempotent startup outcome without beginning a run."""
+    if not re.fullmatch(AUTO_RUN_ID_PATTERN, date):
+        raise RunStateError(f"automatic terminal run id must be YYYY-MM-DD-auto, got {date!r}")
     if status not in (ALREADY_PUBLISHED, SKIPPED_LOCKED):
         raise RunStateError(f"startup terminal status must be already_published or skipped_locked, got {status!r}")
     existing = load_run(repo_path, date)
@@ -171,9 +176,33 @@ def create_terminal_run(
     return run
 
 
+def _json_deep_copy(value: dict, error_message: str) -> dict:
+    try:
+        return json.loads(json.dumps(value, ensure_ascii=False, allow_nan=False))
+    except (TypeError, ValueError) as error:
+        raise RunStateError(error_message) from error
+
+
+def _validate_detail_keys(value: object) -> None:
+    if isinstance(value, dict):
+        for key, nested_value in value.items():
+            if isinstance(key, str) and any(
+                segment in key.casefold() for segment in SENSITIVE_DETAIL_KEY_SEGMENTS
+            ):
+                raise RunStateError(f"event details contain sensitive key {key!r}")
+            _validate_detail_keys(nested_value)
+    elif isinstance(value, list):
+        for item in value:
+            _validate_detail_keys(item)
+
+
 def record_event(run: dict, event: str, at: str, details: dict | None = None) -> dict:
     """Return a copy of run with an auditable event appended to its history."""
-    updated = {**run, "history": [*run.get("history", [])]}
+    if details is not None:
+        _validate_detail_keys(details)
+        details = _json_deep_copy(details, "event details must be JSON serializable")
+    updated = _json_deep_copy(run, "run state must be JSON serializable")
+    updated["history"] = [*updated.get("history", [])]
     entry = {"event": event, "at": at}
     if details:
         entry["details"] = details
@@ -185,13 +214,14 @@ def advance(run: dict, new_status: str, at: str | None = None) -> dict:
     """Move the run to new_status, enforcing the state machine."""
     current = run["status"]
     if new_status == current:
-        return {**run, "history": [*run.get("history", [])]}  # idempotent re-entry
+        return _json_deep_copy(run, "run state must be JSON serializable")  # idempotent re-entry
     allowed = TRANSITIONS.get(current, ())
     if new_status not in allowed:
         raise RunStateError(
             f"illegal transition {current} -> {new_status} (allowed: {list(allowed)})"
         )
-    updated = {**run, "history": [*run.get("history", [])]}
+    updated = _json_deep_copy(run, "run state must be JSON serializable")
+    updated["history"] = [*updated.get("history", [])]
     updated["status"] = new_status
     entry = {"status": new_status}
     if at:
