@@ -186,19 +186,25 @@ def find_duplicate(candidate: dict, posts: list[PostRecord], recent_topics: list
             matches.append(DuplicateMatch(source, slug, title, 1.0 if exact else score, "exact identity" if exact else "intent overlap"))
     if not matches:
         return None
-    closest = max(matches, key=lambda value: value.score)
+    # Identity is authoritative, regardless of a preceding semantic match.
+    exact_matches = [value for value in matches if value.reason == "exact identity"]
+    closest = max(exact_matches or matches, key=lambda value: value.score)
     update = candidate.get("materialUpdate")
     update_framed = (
         isinstance(update, dict)
         and bool(str(update.get("date", "")).strip())
         and bool(str(update.get("summary", "")).strip())
         and bool(re.search(r"\b(update|new|changed|202\d)\b", candidate.get("title", ""), re.IGNORECASE))
+        and bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(update.get("date", "")).strip()))
     )
     if update_framed and closest.reason != "exact identity":
         # A material update is a bypass only when it introduces genuinely new
         # intent; retaining the old intent still indicates a duplicate.
         matched = next(item for source, item in items if normalize(item.slug if isinstance(item, PostRecord) else item.get("slug", "")) == closest.slug)
-        if _jaccard(frozenset(normalize(candidate.get("intentSummary", "")).replace("-", " ").split()), _intent_tokens(matched)) < threshold:
+        shared_keyword = frozenset(normalize(candidate.get("primaryKeyword", "")).replace("-", " ").split())
+        candidate_intent = frozenset(normalize(candidate.get("intentSummary", "")).replace("-", " ").split()) - shared_keyword
+        matched_intent = _intent_tokens(matched) - shared_keyword
+        if _jaccard(candidate_intent, matched_intent) < threshold:
             return None
     return closest
 
@@ -211,35 +217,21 @@ def dedupe(candidates: list, existing_slugs: list) -> tuple[list, list]:
     tokens and any existing slug's tokens reaches SIMILARITY_THRESHOLD.
     Dropped candidates get a "droppedBecause" explanation attached.
     """
-    existing = [normalize(s) for s in existing_slugs]
-    existing_token_sets = [(s, _tokens(s)) for s in existing]
+    posts = [PostRecord(normalize(s), "", "", ()) for s in existing_slugs]
 
     fresh: list = []
     dropped: list = []
     for candidate in candidates:
-        slug = normalize(candidate.get("slug", ""))
-        title_slug = normalize(candidate.get("title", ""))
-
-        reason = None
-        if slug and slug in existing:
-            reason = f"{DROPPED_EXACT_SLUG}: {slug}"
-        elif title_slug and title_slug in existing:
-            reason = f"{DROPPED_EXACT_SLUG}: {title_slug}"
-        else:
-            title_tokens = _tokens(title_slug)
-            for existing_slug, tokens in existing_token_sets:
-                score = _jaccard(title_tokens, tokens)
-                if score >= SIMILARITY_THRESHOLD:
-                    reason = (
-                        f"{DROPPED_SIMILAR_TITLE}: {existing_slug} "
-                        f"(overlap {score:.2f})"
-                    )
-                    break
-
-        if reason is None:
+        match = find_duplicate(candidate, posts, [], SIMILARITY_THRESHOLD)
+        if match is None:
             fresh.append(candidate)
         else:
-            dropped.append({**candidate, "droppedBecause": reason})
+            reason = (f"{DROPPED_EXACT_SLUG}: {match.slug}" if match.reason == "exact identity"
+                      else f"{DROPPED_SIMILAR_TITLE}: {match.slug} (overlap {match.score:.2f})")
+            dropped.append({**candidate, "droppedBecause": reason,
+                            "duplicateSource": match.source, "duplicateSlug": match.slug,
+                            "duplicateTitle": match.title, "duplicateScore": match.score,
+                            "duplicateReason": match.reason})
     return fresh, dropped
 
 
