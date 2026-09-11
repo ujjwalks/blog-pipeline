@@ -25,6 +25,18 @@ DRAFTING = "drafting"
 AWAITING_CONTENT_APPROVAL = "awaiting_content_approval"
 DEPLOYING = "deploying"
 PUBLISHED = "published"
+SELECTING = "selecting"
+VALIDATING = "validating"
+COMMITTING = "committing"
+VERIFYING = "verifying"
+FAILED = "failed"
+NOTHING_PUBLISHABLE = "nothing_publishable"
+ALREADY_PUBLISHED = "already_published"
+SKIPPED_LOCKED = "skipped_locked"
+DRY_RUN_VALIDATED = "dry_run_validated"
+
+AUTO_RUN_ID_PATTERN = r"\d{4}-\d{2}-\d{2}-auto"
+SENSITIVE_DETAIL_KEY_SEGMENTS = ("secret", "token", "password", "webhook")
 
 STATES = (
     RESEARCHING,
@@ -33,17 +45,52 @@ STATES = (
     AWAITING_CONTENT_APPROVAL,
     DEPLOYING,
     PUBLISHED,
+    SELECTING,
+    VALIDATING,
+    COMMITTING,
+    VERIFYING,
+    FAILED,
+    NOTHING_PUBLISHABLE,
+    ALREADY_PUBLISHED,
+    SKIPPED_LOCKED,
+    DRY_RUN_VALIDATED,
 )
 
-# Legal transitions. published is terminal. A no-op day (nothing new found)
-# jumps researching -> published directly.
+# Automatic terminal outcomes. ALREADY_PUBLISHED and SKIPPED_LOCKED may be
+# created at startup because no pipeline work needs to begin for either.
+AUTO_TERMINAL_STATES = (
+    PUBLISHED,
+    FAILED,
+    NOTHING_PUBLISHABLE,
+    ALREADY_PUBLISHED,
+    SKIPPED_LOCKED,
+    DRY_RUN_VALIDATED,
+)
+
+# Legal transitions. Manual gates remain available; automatic runs follow the
+# SELECTING -> VALIDATING -> COMMITTING -> VERIFYING path.
 TRANSITIONS = {
-    RESEARCHING: (AWAITING_TOPIC_APPROVAL, PUBLISHED),
+    RESEARCHING: (
+        AWAITING_TOPIC_APPROVAL,
+        SELECTING,
+        PUBLISHED,
+        FAILED,
+        NOTHING_PUBLISHABLE,
+    ),
     AWAITING_TOPIC_APPROVAL: (DRAFTING,),
-    DRAFTING: (AWAITING_CONTENT_APPROVAL,),
+    SELECTING: (DRAFTING, FAILED, NOTHING_PUBLISHABLE),
+    DRAFTING: (AWAITING_CONTENT_APPROVAL, VALIDATING, FAILED),
     AWAITING_CONTENT_APPROVAL: (DEPLOYING,),
-    DEPLOYING: (PUBLISHED,),
+    VALIDATING: (COMMITTING, FAILED, DRY_RUN_VALIDATED),
+    COMMITTING: (DEPLOYING, FAILED),
+    DEPLOYING: (VERIFYING, PUBLISHED, FAILED),
+    VERIFYING: (PUBLISHED, FAILED),
     PUBLISHED: (),
+    FAILED: (),
+    NOTHING_PUBLISHABLE: (),
+    ALREADY_PUBLISHED: (),
+    SKIPPED_LOCKED: (),
+    DRY_RUN_VALIDATED: (),
 }
 
 
@@ -100,22 +147,87 @@ def create_run(repo_path: str | Path, date: str) -> dict:
     return run
 
 
+def create_terminal_run(
+    repo_path: str | Path,
+    date: str,
+    status: str,
+    at: str,
+    details: dict | None = None,
+) -> dict:
+    """Record an idempotent startup outcome without beginning a run."""
+    if not re.fullmatch(AUTO_RUN_ID_PATTERN, date):
+        raise RunStateError(f"automatic terminal run id must be YYYY-MM-DD-auto, got {date!r}")
+    if status not in (ALREADY_PUBLISHED, SKIPPED_LOCKED):
+        raise RunStateError(f"startup terminal status must be already_published or skipped_locked, got {status!r}")
+    existing = load_run(repo_path, date)
+    if existing is not None:
+        return existing
+    run = {
+        "date": date,
+        "status": status,
+        "topics": [],
+        "selected": [],
+        "drafted": [],
+        "deploy": {},
+        "history": [],
+    }
+    run = record_event(run, status, at, details)
+    save_run(repo_path, run)
+    return run
+
+
+def _json_deep_copy(value: dict, error_message: str) -> dict:
+    try:
+        return json.loads(json.dumps(value, ensure_ascii=False, allow_nan=False))
+    except (TypeError, ValueError) as error:
+        raise RunStateError(error_message) from error
+
+
+def _validate_detail_keys(value: object) -> None:
+    if isinstance(value, dict):
+        for key, nested_value in value.items():
+            if isinstance(key, str) and any(
+                segment in key.casefold() for segment in SENSITIVE_DETAIL_KEY_SEGMENTS
+            ):
+                raise RunStateError(f"event details contain sensitive key {key!r}")
+            _validate_detail_keys(nested_value)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _validate_detail_keys(item)
+
+
+def record_event(run: dict, event: str, at: str, details: dict | None = None) -> dict:
+    """Return a copy of run with an auditable event appended to its history."""
+    if details is not None:
+        _validate_detail_keys(details)
+        details = _json_deep_copy(details, "event details must be JSON serializable")
+    updated = _json_deep_copy(run, "run state must be JSON serializable")
+    updated["history"] = [*updated.get("history", [])]
+    entry = {"event": event, "at": at}
+    if details:
+        entry["details"] = details
+    updated["history"].append(entry)
+    return updated
+
+
 def advance(run: dict, new_status: str, at: str | None = None) -> dict:
     """Move the run to new_status, enforcing the state machine."""
     current = run["status"]
     if new_status == current:
-        return run  # idempotent re-entry
+        return _json_deep_copy(run, "run state must be JSON serializable")  # idempotent re-entry
     allowed = TRANSITIONS.get(current, ())
     if new_status not in allowed:
         raise RunStateError(
             f"illegal transition {current} -> {new_status} (allowed: {list(allowed)})"
         )
-    run["status"] = new_status
+    updated = _json_deep_copy(run, "run state must be JSON serializable")
+    updated["history"] = [*updated.get("history", [])]
+    updated["status"] = new_status
     entry = {"status": new_status}
     if at:
         entry["at"] = at
-    run["history"].append(entry)
-    return run
+    updated["history"].append(entry)
+    return updated
 
 
 # --- Pick parsing (shared by both gate paths) ---
@@ -175,7 +287,8 @@ def main(argv):
     print(f"date: {run['date']}  status: {run['status']}")
     print(f"topics: {len(run['topics'])}  selected: {run['selected']}  drafted: {len(run['drafted'])}")
     for h in run["history"]:
-        print(f"  -> {h['status']}" + (f" at {h['at']}" if "at" in h else ""))
+        label = h.get("status", h.get("event", "unknown"))
+        print(f"  -> {label}" + (f" at {h['at']}" if "at" in h else ""))
     return 0
 
 

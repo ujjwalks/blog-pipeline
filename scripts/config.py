@@ -21,10 +21,23 @@ from pathlib import Path
 
 BLOG_FORMATS = ("json", "md", "mdx")
 SCHEDULERS = ("crontab", "launchd", "schedule-skill")
-GATE_MODES = ("manual", "poll")
+AUTO_GATE_MODE = "auto"
+GATE_MODES = ("manual", "poll", AUTO_GATE_MODE)
 CHANNEL_TYPES = ("slack", "cli", "email")
 REVIEW_MODES = ("vercel-preview", "local-dev", "inline")
 DEPLOY_MODES = ("git-push", "vercel-cli")
+
+AUTOMATION_REQUIRED_FIELDS = (
+    "timezone", "minTopicScore", "minSourceAuthority", "similarityThreshold",
+    "productionBaseUrl", "sitemapUrl", "verificationAttempts",
+    "verificationIntervalSeconds", "validationCommands",
+)
+AUTOMATION_NUMERIC_FIELDS = (
+    "minTopicScore", "minSourceAuthority", "verificationAttempts",
+    "verificationIntervalSeconds",
+)
+AUTOMATION_URL_FIELDS = ("productionBaseUrl", "sitemapUrl")
+AUTOMATIC_TIMEZONE = "Asia/Kolkata"
 
 CONFIG_DIRNAME = ".blog-pipeline"
 CONFIG_FILENAME = "config.json"
@@ -82,6 +95,41 @@ def _check_env_name(value, dotted: str, errors: list) -> None:
     for pat in SECRET_VALUE_PATTERNS:
         if pat.search(value):
             errors.append(f"{dotted}: looks like a secret VALUE, store the env var name instead")
+
+
+def _validate_automation(cfg: dict, errors: list[str]) -> None:
+    gates = cfg.get("gates", {})
+    gate_values = (gates.get("topicApproval", "manual"), gates.get("contentApproval", "manual"))
+    if AUTO_GATE_MODE in gate_values and gate_values != (AUTO_GATE_MODE, AUTO_GATE_MODE):
+        errors.append("gates: automatic mode requires topicApproval and contentApproval to both equal 'auto'")
+    if gate_values != (AUTO_GATE_MODE, AUTO_GATE_MODE):
+        return
+    if cfg.get("blogsPerRun", 3) != 1:
+        errors.append("blogsPerRun: automatic mode requires blogsPerRun to equal 1")
+    automation = cfg.get("automation", {})
+    for field in AUTOMATION_REQUIRED_FIELDS:
+        if field not in automation:
+            errors.append(f"automation.{field}: required in automatic mode")
+    if automation.get("timezone") != AUTOMATIC_TIMEZONE:
+        errors.append("automation.timezone: must equal 'Asia/Kolkata' in automatic mode")
+    threshold = automation.get("similarityThreshold")
+    if not isinstance(threshold, (int, float)) or not 0 < threshold <= 1:
+        errors.append("automation.similarityThreshold: must be greater than 0 and at most 1")
+    for field in AUTOMATION_NUMERIC_FIELDS:
+        value = automation.get(field)
+        if not isinstance(value, int) or value < 1:
+            errors.append(f"automation.{field}: must be a positive integer")
+    for field in AUTOMATION_URL_FIELDS:
+        value = automation.get(field, "")
+        if not isinstance(value, str) or not value.startswith("https://"):
+            errors.append(f"automation.{field}: must be an https URL")
+    commands = automation.get("validationCommands")
+    if not isinstance(commands, list) or not commands or any(
+        not isinstance(command, list) or not command
+        or not all(isinstance(token, str) and token for token in command)
+        for command in commands
+    ):
+        errors.append("automation.validationCommands: must be a non-empty list of non-empty argv lists")
 
 
 def validate_config(cfg: dict) -> list:
@@ -153,6 +201,8 @@ def validate_config(cfg: dict) -> list:
     for field in ("remote", "target"):
         if deploy and not deploy.get(field):
             errors.append(f"deploy.{field}: required (e.g. origin / main)")
+
+    _validate_automation(cfg, errors)
 
     return errors
 
