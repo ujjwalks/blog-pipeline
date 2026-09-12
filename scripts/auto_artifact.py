@@ -117,7 +117,7 @@ def _codex_schema_node(node, path=()):
     result = {
         key: _codex_schema_node(value, path + (key,))
         for key, value in node.items()
-        if key not in {"$schema", "format"}
+        if key != "$schema" and not (key == "format" and path[-1:] != ("properties",))
     }
     if "oneOf" in result:
         result["anyOf"] = result.pop("oneOf")

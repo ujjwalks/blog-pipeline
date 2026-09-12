@@ -132,6 +132,9 @@ class AutoArtifactTest(unittest.TestCase):
         self.assertEqual(schema["required"], ["outcome", "reason", "topic", "blog", "cover"])
         self.assertNotIn("oneOf", schema)
         self.assertNotIn("anyOf", schema)
+        blog_schema = schema["properties"]["blog"]["anyOf"][0]
+        self.assertIn("format", blog_schema["properties"])
+        self.assertIn("format", blog_schema["required"])
 
     def test_parses_direct_codex_artifact_and_legacy_wrappers(self):
         artifact = {"outcome": "nothing_publishable", "reason": "No candidate met 18 points"}
