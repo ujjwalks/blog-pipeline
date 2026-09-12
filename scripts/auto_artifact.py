@@ -107,6 +107,65 @@ ARTIFACT_JSON_SCHEMA = {
 }
 
 
+def _codex_schema_node(node, path=()):
+    if isinstance(node, list):
+        return [_codex_schema_node(value, path) for value in node]
+    if not isinstance(node, dict):
+        return node
+    if path[-1:] == ("structuredData",):
+        return {"type": "string"}
+    result = {
+        key: _codex_schema_node(value, path + (key,))
+        for key, value in node.items()
+        if key not in {"$schema", "format"}
+    }
+    if "oneOf" in result:
+        result["anyOf"] = result.pop("oneOf")
+    if "const" in result:
+        result["type"] = "string"
+    properties = result.get("properties")
+    if isinstance(properties, dict):
+        if path[-1:] == ("topic",):
+            properties.pop("materialUpdate", None)
+        result["required"] = list(properties)
+        result["additionalProperties"] = False
+    return result
+
+
+def codex_output_schema() -> dict:
+    """Return the Codex-compatible transport schema for a direct artifact."""
+    publish, _ = _codex_schema_node(ARTIFACT_JSON_SCHEMA)["anyOf"]
+    nullable = lambda value: {"anyOf": [value, {"type": "null"}]}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["outcome", "reason", "topic", "blog", "cover"],
+        "properties": {
+            "outcome": {"type": "string", "enum": [PUBLISH_OUTCOME, NO_TOPIC_OUTCOME]},
+            "reason": {"type": "string"},
+            "topic": nullable(publish["properties"]["topic"]),
+            "blog": nullable(publish["properties"]["blog"]),
+            "cover": nullable(publish["properties"]["cover"]),
+        },
+    }
+
+
+def _normalize_codex_artifact(artifact: dict) -> dict:
+    normalized = dict(artifact)
+    outcome = normalized.get("outcome")
+    if outcome == NO_TOPIC_OUTCOME:
+        return {"outcome": outcome, "reason": normalized.get("reason")}
+    if outcome == PUBLISH_OUTCOME:
+        normalized.pop("reason", None)
+        structured = normalized.get("blog", {}).get("structuredData") if isinstance(normalized.get("blog"), dict) else None
+        if isinstance(structured, str):
+            try:
+                normalized["blog"] = {**normalized["blog"], "structuredData": json.loads(structured)}
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Model structuredData is not valid JSON: {exc}") from exc
+    return normalized
+
+
 def parse_model_output(raw: str) -> dict:
     try:
         wrapper = json.loads(raw)
@@ -115,7 +174,7 @@ def parse_model_output(raw: str) -> dict:
     if not isinstance(wrapper, dict):
         raise ValueError("Model response must be a JSON object")
     if "outcome" in wrapper:
-        return wrapper
+        return _normalize_codex_artifact(wrapper)
     value = wrapper.get("structured_output")
     if value is None and isinstance(wrapper.get("artifact"), str):
         try:
