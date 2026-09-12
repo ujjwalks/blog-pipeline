@@ -107,21 +107,28 @@ ARTIFACT_JSON_SCHEMA = {
 }
 
 
-def parse_claude_output(raw: str) -> dict:
+def parse_model_output(raw: str) -> dict:
     try:
         wrapper = json.loads(raw)
     except (TypeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Claude response is not valid JSON: {exc}") from exc
+        raise ValueError(f"Model response is not valid JSON: {exc}") from exc
     if not isinstance(wrapper, dict):
-        raise ValueError("Claude response must be a JSON object")
+        raise ValueError("Model response must be a JSON object")
+    if "outcome" in wrapper:
+        return wrapper
     value = wrapper.get("structured_output")
+    if value is None and isinstance(wrapper.get("artifact"), str):
+        try:
+            value = json.loads(wrapper["artifact"])
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Model artifact is not valid JSON: {exc}") from exc
     if value is None and isinstance(wrapper.get("result"), str):
         try:
             value = json.loads(wrapper["result"])
         except json.JSONDecodeError as exc:
-            raise ValueError(f"Claude result is not valid structured JSON: {exc}") from exc
+            raise ValueError(f"Model result is not valid structured JSON: {exc}") from exc
     if not isinstance(value, dict):
-        raise ValueError("Claude response has no object structured_output")
+        raise ValueError("Model response has no object structured_output")
     return value
 
 

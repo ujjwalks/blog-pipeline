@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from auto_artifact import (  # noqa: E402
     ARTIFACT_JSON_SCHEMA,
-    parse_claude_output,
+    parse_model_output,
     safe_artifact_paths,
     validate_artifact,
 )
@@ -125,12 +125,14 @@ class AutoArtifactTest(unittest.TestCase):
         self.assertEqual(ARTIFACT_JSON_SCHEMA["oneOf"][0]["required"], ["outcome", "topic", "blog", "cover"])
         self.assertEqual(ARTIFACT_JSON_SCHEMA["oneOf"][1]["required"], ["outcome", "reason"])
 
-    def test_parses_structured_output_and_result_fallback(self):
+    def test_parses_direct_codex_artifact_and_legacy_wrappers(self):
         artifact = {"outcome": "nothing_publishable", "reason": "No candidate met 18 points"}
-        self.assertEqual(parse_claude_output(json.dumps({"structured_output": artifact})), artifact)
-        self.assertEqual(parse_claude_output(json.dumps({"result": json.dumps(artifact)})), artifact)
+        self.assertEqual(parse_model_output(json.dumps(artifact)), artifact)
+        self.assertEqual(parse_model_output(json.dumps({"artifact": json.dumps(artifact)})), artifact)
+        self.assertEqual(parse_model_output(json.dumps({"structured_output": artifact})), artifact)
+        self.assertEqual(parse_model_output(json.dumps({"result": json.dumps(artifact)})), artifact)
         with self.assertRaisesRegex(ValueError, "structured_output"):
-            parse_claude_output(json.dumps({"result": 4}))
+            parse_model_output(json.dumps({"result": 4}))
 
     def test_valid_publish_artifact_passes(self):
         self.assertEqual(validate_artifact(valid_artifact(), self.cfg, "2026-09-09", [], []), [])
