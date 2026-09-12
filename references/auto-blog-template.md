@@ -5,10 +5,16 @@ artifact; the caller performs every side effect.
 
 ## Topic decision
 
-Evaluate current questions across the configured personas. A candidate needs a
-dated reason to publish now, a recognizable search question, strong audience
-fit, at least two current authoritative sources including one primary source,
-and a natural FinBoard connection.
+Evaluate only recent, dated news and material product, regulatory, or standards
+changes across the configured personas. A candidate needs a recognizable search
+question, strong audience fit, at least two current authoritative sources
+including one primary source, and a natural FinBoard connection. For every
+candidate that clears these basics, inspect relevant competitor blog coverage.
+Use that coverage to define a differentiated FinBoard angle: a specific persona
+decision, implementation implication, accounting control, or comparison gap
+that competitors leave unanswered. Do not reject a candidate merely because a
+competitor covered the news; reject it only when the proposed FinBoard intent
+still overlaps existing FinBoard coverage after differentiation.
 
 Scores are integers from 0 to 5 for `freshness`, `audienceFit`,
 `sourceAuthority`, `searchSharingPotential`, and `productRelevance`. Use the
@@ -28,6 +34,9 @@ date, supported claim, and authority class. Prefer product documentation,
 regulators, standards setters, tax authorities, and original announcements.
 Link the dated primary source in the why-now section near the claim it supports.
 Do not infer product behavior from search snippets.
+
+In the article, make the differentiating angle explicit and useful without
+disparaging competitors or making unsupported claims about their coverage.
 
 ## Article structure
 
