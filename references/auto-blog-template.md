@@ -13,8 +13,10 @@ candidate that clears these basics, inspect relevant competitor blog coverage.
 Use that coverage to define a differentiated FinBoard angle: a specific persona
 decision, implementation implication, accounting control, or comparison gap
 that competitors leave unanswered. Do not reject a candidate merely because a
-competitor covered the news; reject it only when the proposed FinBoard intent
-still overlaps existing FinBoard coverage after differentiation.
+competitor covered the news or an earlier FinBoard idea shares keywords. Return
+`nothing_publishable` only for an exact local slug/title match, an
+indistinguishable intent after the material news change, or inadequate source
+support. The deterministic caller makes the final duplicate decision.
 
 Scores are integers from 0 to 5 for `freshness`, `audienceFit`,
 `sourceAuthority`, `searchSharingPotential`, and `productRelevance`. Use the
