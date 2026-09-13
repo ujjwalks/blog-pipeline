@@ -30,15 +30,15 @@ body{{margin:0;width:1200px;height:630px;background:#F5F0E8;font-family:'Inter',
 .top{{display:flex;justify-content:space-between;align-items:center;padding:44px 56px 0}}
 .logo{{font-size:26px;font-weight:800}}.logo b{{color:#2563EB}}
 .chip{{font-size:15px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:{accent};border:2px solid {accent}44;background:{accent}11;padding:9px 20px;border-radius:999px}}
-.mid{{padding:0 56px;max-width:980px}}
-h1{{font-size:{fs}px;line-height:1.08;letter-spacing:-0.025em;font-weight:700;margin:0}}
-h1 .dot{{color:{accent}}}
+.mid{{padding:0 56px;display:flex;align-items:center;gap:14px}}
+.signal{{width:18px;height:18px;border-radius:50%;background:{accent};box-shadow:32px 0 0 {accent}66,64px 0 0 {accent}22}}
+.flow{{height:4px;width:320px;border-radius:99px;background:linear-gradient(90deg,{accent},transparent)}}
 .bot{{display:flex;justify-content:space-between;align-items:center;padding:0 56px 42px;font-size:16px;color:rgba(10,10,10,.5)}}
 .rule{{height:5px;background:{accent};width:96px;border-radius:99px;margin-bottom:18px}}
 </style></head><body>
 <div class="motif"><div>{cells}</div></div>
 <div class="top"><div class="logo">{brand_pre}<b>{brand_accent}</b></div><div class="chip">{tag}</div></div>
-<div class="mid"><div class="rule"></div><h1>{title}<span class="dot">.</span></h1></div>
+<div class="mid"><div class="rule"></div><div class="signal"></div><div class="flow"></div></div>
 <div class="bot"><span>{site}</span><span>{byline}</span></div>
 </body></html>"""
 
@@ -47,10 +47,9 @@ def build_html(title: str, tag: str, accent: str, brand: str = "FinBoard",
                brand_accent: str = "Board", site: str = "finboard.ai/blog",
                byline: str = "FinBoard Team") -> str:
     """Pure HTML build (testable without Chrome)."""
-    fs = 54 if len(title) < 75 else 46
     brand_pre = brand[: len(brand) - len(brand_accent)] if brand.endswith(brand_accent) else brand
     return BLOG_HTML.format(
-        title=title, tag=tag, accent=accent, fs=fs,
+        tag=tag, accent=accent,
         cells="<span></span>" * 20,
         brand_pre=brand_pre, brand_accent=brand_accent, site=site, byline=byline,
     )

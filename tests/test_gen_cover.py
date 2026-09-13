@@ -8,17 +8,16 @@ import gen_cover
 
 
 class TestBuildHtml(unittest.TestCase):
-    def test_contains_title_tag_accent(self):
-        html = gen_cover.build_html("My Post Title", "For CPAs", "#7C3AED")
-        self.assertIn("My Post Title", html)
+    def test_uses_compact_tag_without_rendering_headline(self):
+        html = gen_cover.build_html("A very long post title that belongs in page metadata", "For CPAs", "#7C3AED")
+        self.assertNotIn("A very long post title", html)
         self.assertIn("For CPAs", html)
         self.assertIn("#7C3AED", html)
 
-    def test_long_title_shrinks_font(self):
+    def test_long_title_does_not_change_cover_layout(self):
         short = gen_cover.build_html("Short", "T", "#000000")
         long = gen_cover.build_html("x" * 90, "T", "#000000")
-        self.assertIn("font-size:54px", short)
-        self.assertIn("font-size:46px", long)
+        self.assertEqual(short, long)
 
     def test_brand_split(self):
         html = gen_cover.build_html("T", "T", "#000000")
