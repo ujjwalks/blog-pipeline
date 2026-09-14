@@ -107,6 +107,10 @@ Return exactly one object matching `scripts/auto_artifact.py`'s
 one topic, one complete blog document, and its cover inputs. If no candidate
 qualifies, return `nothing_publishable` with a concise reason.
 
+For Codex's transport schema, serialize `blog.structuredData` as base64-encoded
+UTF-8 JSON-LD, with no code fence or prose. The deterministic caller decodes it
+before applying the canonical artifact validation.
+
 This route only makes the editorial decision. You may use read-only inspection
 commands to read the skill, configuration, and local blog inventory. Do not
 write files, use Git, deploy, or contact Slack. The deterministic caller owns

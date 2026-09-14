@@ -1,6 +1,7 @@
 """Behavior tests for the unattended model artifact boundary."""
 
 import copy
+import base64
 import json
 import sys
 import tempfile
@@ -148,6 +149,14 @@ class AutoArtifactTest(unittest.TestCase):
         })), artifact)
         with self.assertRaisesRegex(ValueError, "structured_output"):
             parse_model_output(json.dumps({"result": 4}))
+
+    def test_parses_base64_structured_data_from_codex_transport(self):
+        artifact = valid_artifact()
+        transport = copy.deepcopy(artifact)
+        transport["blog"]["structuredData"] = base64.b64encode(
+            json.dumps(artifact["blog"]["structuredData"]).encode()
+        ).decode()
+        self.assertEqual(parse_model_output(json.dumps(transport)), artifact)
 
     def test_valid_publish_artifact_passes(self):
         self.assertEqual(validate_artifact(valid_artifact(), self.cfg, "2026-09-09", [], []), [])

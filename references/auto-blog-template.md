@@ -83,6 +83,10 @@ Return the exact field vocabulary defined by
 The cover object contains a short audience tag and a readable six-digit hex
 accent. Never reuse another article's cover.
 
+For Codex structured output only, encode the complete `blog.structuredData`
+JSON-LD object as a base64 UTF-8 string. Do not return raw JSON-LD in that
+transport field; the caller decodes it before validation.
+
 ## Output boundary
 
 Return only the structured envelope. Do not write the article or cover, call a

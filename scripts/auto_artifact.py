@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import base64
 import html
 import json
 import re
@@ -113,7 +114,7 @@ def _codex_schema_node(node, path=()):
     if not isinstance(node, dict):
         return node
     if path[-1:] == ("structuredData",):
-        return {"type": "string"}
+        return {"type": "string", "description": "Base64-encoded UTF-8 JSON-LD object. Do not return raw JSON or markdown."}
     result = {
         key: _codex_schema_node(value, path + (key,))
         for key, value in node.items()
@@ -160,8 +161,9 @@ def _normalize_codex_artifact(artifact: dict) -> dict:
         structured = normalized.get("blog", {}).get("structuredData") if isinstance(normalized.get("blog"), dict) else None
         if isinstance(structured, str):
             try:
-                normalized["blog"] = {**normalized["blog"], "structuredData": json.loads(structured)}
-            except json.JSONDecodeError as exc:
+                structured_json = structured if structured.lstrip().startswith(("{", "[")) else base64.b64decode(structured, validate=True).decode("utf-8")
+                normalized["blog"] = {**normalized["blog"], "structuredData": json.loads(structured_json)}
+            except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                 raise ValueError(f"Model structuredData is not valid JSON: {exc}") from exc
     return normalized
 
